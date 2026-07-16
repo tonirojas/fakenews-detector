@@ -165,6 +165,10 @@ let conclusionExpected = false;
  *  Re-clicking Conclusión when this is true just re-shows VIEW B without a new API call. */
 let conclusionResultShown = false;
 
+/** Client-side watchdog timer handle for the GENERATE_CONCLUSION request.
+ *  Cleared when the result/error arrives or when the view is reset. */
+let conclusionWatchdog = null;
+
 // ---------------------------------------------------------------------------
 // View switcher
 // ---------------------------------------------------------------------------
@@ -309,6 +313,8 @@ function resetConclusionView() {
   // Any in-flight or already-shown result is no longer relevant after a reset.
   conclusionExpected    = false;
   conclusionResultShown = false;
+  clearTimeout(conclusionWatchdog);
+  conclusionWatchdog = null;
   if (conclusionStats) conclusionStats.textContent = "";
   clearConclusionBody();
 }
@@ -751,6 +757,8 @@ api.runtime.onMessage.addListener((message) => {
     // conclusionExpected is only true when GENERATE_CONCLUSION was actually sent
     // for the current session; setConclusionEmpty and resetConclusionView clear it.
     if (!conclusionExpected) return;
+    clearTimeout(conclusionWatchdog);
+    conclusionWatchdog = null;
     conclusionExpected = false;
     conclusionPending  = false;
     if (btnConclusion) btnConclusion.disabled = false;
@@ -769,6 +777,8 @@ api.runtime.onMessage.addListener((message) => {
   if (message.type === "CONCLUSION_ERROR" && message.tabId === activeTabId) {
     // Mirror the guard: stale errors from a cleared session must be swallowed.
     if (!conclusionExpected) return;
+    clearTimeout(conclusionWatchdog);
+    conclusionWatchdog = null;
     conclusionExpected = false;
     conclusionPending  = false;
     if (btnConclusion) btnConclusion.disabled = false;
@@ -829,6 +839,19 @@ btnConclusion?.addEventListener("click", () => {
   if (btnConclusion) btnConclusion.disabled = true;
 
   api.runtime.sendMessage({ type: "GENERATE_CONCLUSION", tabId: activeTabId }).catch(() => {});
+
+  // Backstop watchdog: if the service worker is killed mid-request the broadcast
+  // may never arrive. Fires at 130 s — slightly after REQUEST_TIMEOUT_MS (120 s)
+  // so the background error message normally wins when the network call fails cleanly.
+  clearTimeout(conclusionWatchdog);
+  conclusionWatchdog = setTimeout(() => {
+    if (!conclusionExpected) return;
+    conclusionWatchdog = null;
+    conclusionExpected = false;
+    conclusionPending = false;
+    if (btnConclusion) btnConclusion.disabled = false;
+    setConclusionError("La conclusión está tardando demasiado. Inténtalo de nuevo o usa un modelo más rápido.");
+  }, 130000);
 });
 
 // ---------------------------------------------------------------------------

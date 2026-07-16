@@ -229,6 +229,7 @@ The **← Resultados** button returns to the claim feed without cancelling a pen
 - The AI conclusion requires an API key (skipped automatically for Ollama and other keyless providers).
 - The button is disabled while the AI call is in progress to prevent duplicate requests.
 - The conclusion view resets when you click **Limpiar** or switch to a different tab.
+- The AI conclusion uses the configured provider and has a ~120 s timeout. Reasoning models (MiniMax M2.x, DeepSeek-R1) are slower to conclude — for near-instant conclusions prefer a fast model.
 
 ### Historial — per-session response log
 
