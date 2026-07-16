@@ -109,6 +109,7 @@ Open the extension options (click the toolbar icon → **Configuración**, or ri
 | China | **Qwen / Alibaba** | openai-compat | qwen-turbo | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/) |
 | China | **Kimi / Moonshot** | openai-compat | kimi-k2-turbo-preview | [platform.moonshot.ai](https://platform.moonshot.ai/console/api-keys) |
 | China | **GLM / Zhipu** | openai-compat | glm-4.5-air | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
+| China | **MiniMax** | openai-compat | MiniMax-M2 | [platform.minimax.io](https://platform.minimax.io/) |
 | Otros / Local | **Grok / xAI** | openai-compat | grok-4-fast | [console.x.ai](https://console.x.ai/) |
 | Otros / Local | **Mistral AI** | openai-compat | mistral-small-latest | [console.mistral.ai](https://console.mistral.ai/api-keys/) |
 | Otros / Local | **Groq (Llama)** | openai-compat | llama-3.3-70b-versatile | [console.groq.com](https://console.groq.com/keys) |
@@ -131,8 +132,11 @@ Providers with China-international and China-mainland endpoints differ:
 | Qwen | dashscope-intl.aliyuncs.com | dashscope.aliyuncs.com |
 | Kimi | api.moonshot.ai | api.moonshot.cn |
 | GLM | api.z.ai | open.bigmodel.cn |
+| MiniMax | api.minimax.io | api.minimaxi.com |
 
 Set the **URL base** field to the mainland endpoint to switch without changing your API key.
+
+> Models that emit `<think>` reasoning blocks inline (e.g. MiniMax M2.x) are handled automatically — the extension strips those blocks before JSON parsing.
 
 ### Ollama — local, fully private
 

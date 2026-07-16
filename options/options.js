@@ -16,7 +16,7 @@ initTheme(document);
 // ---------------------------------------------------------------------------
 const PROVIDER_GROUPS = [
   { label: "Principales",   ids: ["anthropic", "openai", "gemini"] },
-  { label: "China",         ids: ["deepseek", "qwen", "kimi", "glm"] },
+  { label: "China",         ids: ["deepseek", "qwen", "kimi", "glm", "minimax"] },
   { label: "Otros / Local", ids: ["grok", "mistral", "groq", "openrouter", "ollama", "custom"] },
 ];
 

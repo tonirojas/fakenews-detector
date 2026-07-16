@@ -26,6 +26,8 @@
     "https://api.mistral.ai/*",
     "https://api.groq.com/*",
     "https://openrouter.ai/*",
+    "https://api.minimax.io/*",
+    "https://api.minimaxi.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
