@@ -95,6 +95,41 @@ body {
   color: var(--text-faint);
 }
 
+/* ── VU Meter ─────────────────────────────────────────────── */
+.vu-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.vu-label {
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.vu-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 12px;
+  flex: 1;
+}
+
+.vu-bar {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--surface-alt);
+  transition: background 0.06s;
+}
+
+/* Lit segment colours — fixed semantic values (same palette as verdict chips) */
+.vu-bar.lit-green { background: #16a34a; }
+.vu-bar.lit-amber { background: #f59e0b; }
+.vu-bar.lit-red   { background: #dc2626; }
+
 /* ── Toolbar ─────────────────────────────────────────────────── */
 .panel-toolbar {
   display: flex;

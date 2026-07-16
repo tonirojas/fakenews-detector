@@ -182,6 +182,9 @@ button:disabled {
 .btn-panel   { background: #059669; color: #fff; }
 .btn-panel:hover:not(:disabled)   { background: #047857; }
 
+.btn-mic     { background: #7c3aed; color: #fff; }
+.btn-mic:hover:not(:disabled)     { background: #6d28d9; }
+
 /* ── Divider ─────────────────────────────────────────────────── */
 .divider {
   height: 1px;

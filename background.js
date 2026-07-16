@@ -10,6 +10,7 @@
  * Message types handled here:
  *   START_TEXT_ANALYSIS  {tabId}
  *   START_AUDIO_ANALYSIS {tabId}
+ *   START_MIC_ANALYSIS   {tabId}
  *   STOP_ANALYSIS        {tabId}
  *   PAGE_TEXT            {tabId, text}
  *   AUDIO_CHUNK          {tabId, base64, mimeType}
@@ -26,7 +27,7 @@ import { api, supportsAudioCapture } from "./lib/webext.js";
 // ---------------------------------------------------------------------------
 /**
  * @typedef {Object} TabState
- * @property {"text"|"audio"|null} mode
+ * @property {"text"|"audio"|"mic"|null} mode
  * @property {string[]} transcriptBuffer
  * @property {number} lastCheckTs
  * @property {Array} results         - last AnalysisResult[]
@@ -324,11 +325,11 @@ async function startAudioAnalysis(tabId) {
       tabId,
       `No se pudo capturar el audio de la pestaña${err?.message ? ` (${err.message.slice(0, 80)})` : ""}`
     );
-    // Close the offscreen document if no other tab is using audio capture
-    const otherAudio = [...tabStates.entries()].some(
-      ([id, s]) => id !== tabId && s.mode === "audio"
+    // Close the offscreen document if no other tab is using audio/mic capture
+    const otherCapture = [...tabStates.entries()].some(
+      ([id, s]) => id !== tabId && (s.mode === "audio" || s.mode === "mic")
     );
-    if (!otherAudio) await closeOffscreenDocument();
+    if (!otherCapture) await closeOffscreenDocument();
   }
 }
 
@@ -341,7 +342,7 @@ async function handleAudioChunk(tabId, base64, mimeType) {
   }
 
   const state = getState(tabId);
-  if (state.mode !== "audio") return;
+  if (state.mode !== "audio" && state.mode !== "mic") return;
 
   // Transcribe chunk
   let transcript;
@@ -396,24 +397,63 @@ async function handleAudioChunk(tabId, base64, mimeType) {
 }
 
 // ---------------------------------------------------------------------------
+// Microphone analysis flow (Chrome / Edge only)
+// ---------------------------------------------------------------------------
+async function startMicAnalysis(tabId) {
+  // Guard: offscreen/tabCapture APIs are unavailable on Firefox
+  if (!supportsAudioCapture()) {
+    broadcastError(tabId, ERRORS.AUDIO_CAPTURE_UNSUPPORTED);
+    return;
+  }
+
+  const state = getState(tabId);
+  state.mode = "mic";
+  state.transcriptBuffer = [];
+  state.transcriptHistory = "";
+
+  try {
+    await ensureOffscreenDocument();
+    // The offscreen document calls getUserMedia({audio:true}) directly.
+    // Permission must have been granted via Configuración → Micrófono first.
+    const response = await api.runtime.sendMessage({ type: "OFFSCREEN_START_MIC", tabId });
+    if (!response?.ok) {
+      throw new Error(response?.error ?? "sin respuesta del documento offscreen");
+    }
+  } catch {
+    state.mode = null;
+    // Guide the user to grant mic permission from the Options page (stable context).
+    broadcastError(tabId, ERRORS.MIC_PERMISSION_DENIED);
+    // Close the offscreen document if no other tab is using audio/mic capture
+    const otherCapture = [...tabStates.entries()].some(
+      ([id, s]) => id !== tabId && (s.mode === "audio" || s.mode === "mic")
+    );
+    if (!otherCapture) await closeOffscreenDocument();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Stop analysis
 // ---------------------------------------------------------------------------
 async function stopAnalysis(tabId) {
   const state = tabStates.get(tabId);
-  if (!state) return;
 
-  if (state.mode === "audio" && supportsAudioCapture()) {
+  // Send OFFSCREEN_STOP only when this tab was actually capturing audio/mic,
+  // or when its state is absent after a SW restart (resilience fallback).
+  // Sending it unconditionally would tear down an active capture in another tab.
+  const stateMode = state?.mode ?? null;
+  if (supportsAudioCapture() && (stateMode === "audio" || stateMode === "mic" || stateMode === null)) {
     api.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
-    // Close offscreen only if no other tab is in audio mode
-    const anyAudio = [...tabStates.entries()].some(
-      ([id, s]) => id !== tabId && s.mode === "audio"
+    const anyCapture = [...tabStates.entries()].some(
+      ([id, s]) => id !== tabId && (s.mode === "audio" || s.mode === "mic")
     );
-    if (!anyAudio) await closeOffscreenDocument();
+    if (!anyCapture) await closeOffscreenDocument();
   }
 
-  state.mode = null;
+  if (state) {
+    state.mode = null;
+    persistState(tabId);
+  }
   broadcastToTab(tabId, { type: "REMOVE_OVERLAY" });
-  persistState(tabId);
 }
 
 // ---------------------------------------------------------------------------
@@ -497,6 +537,20 @@ async function maybeAutoAnalyze(tabId) {
 }
 
 // ---------------------------------------------------------------------------
+// Sender validation helper
+// ---------------------------------------------------------------------------
+/**
+ * Returns true when the message came from an extension page (popup, options,
+ * sidepanel, offscreen document) — NOT from a content script injected into
+ * a web page. Extension pages have sender.id === runtime.id and no sender.tab.
+ *
+ * @param {chrome.runtime.MessageSender} sender
+ */
+function isExtensionPageSender(sender) {
+  return sender?.id === api.runtime.id && !sender?.tab;
+}
+
+// ---------------------------------------------------------------------------
 // Message router
 // ---------------------------------------------------------------------------
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -506,27 +560,48 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = msgTabId ?? sender?.tab?.id;
 
   switch (type) {
+    // ── Commands that must only come from extension pages (not content scripts) ──
     case "START_TEXT_ANALYSIS":
+      if (!isExtensionPageSender(sender)) return false;
       startTextAnalysis(tabId);
       return false; // fire-and-forget
 
     case "START_AUDIO_ANALYSIS":
+      if (!isExtensionPageSender(sender)) return false;
       startAudioAnalysis(tabId);
       return false;
 
+    case "START_MIC_ANALYSIS":
+      if (!isExtensionPageSender(sender)) return false;
+      startMicAnalysis(tabId);
+      return false;
+
     case "STOP_ANALYSIS":
+      if (!isExtensionPageSender(sender)) return false;
       stopAnalysis(tabId);
       return false;
 
+    // ── Data messages from content scripts and the offscreen document ──
     case "PAGE_TEXT":
+      // Sender is a content script (sender.tab is set) — accepted from web pages
       handlePageText(tabId, message.text);
       return false;
 
     case "AUDIO_CHUNK":
+      // Sender is the offscreen document (extension page, no tab)
+      if (!isExtensionPageSender(sender)) return false;
       handleAudioChunk(tabId, message.base64, message.mimeType);
       return false;
 
+    case "AUDIO_LEVEL":
+      // Relay VU meter readings from the offscreen document to the side panel.
+      // Guard with isExtensionPageSender to block spoofing from content scripts.
+      if (!isExtensionPageSender(sender)) return false;
+      broadcastToRuntime(message);
+      return false;
+
     case "GET_STATE": {
+      if (!isExtensionPageSender(sender)) return false;
       const state = tabStates.get(tabId);
       if (state) {
         sendResponse({ mode: state.mode, results: state.results, lastCheckTs: state.lastCheckTs });
@@ -588,14 +663,16 @@ api.tabs.onRemoved.addListener(async (tabId) => {
     persistAutoRecentUrls(); // keep session storage in sync
   }
 
-  const state = tabStates.get(tabId);
-  if (state?.mode === "audio" && supportsAudioCapture()) {
-    // Stop the recorder and release resources — same path as STOP_ANALYSIS
+  // Send OFFSCREEN_STOP only when the closed tab was capturing audio/mic,
+  // or when its state is absent after a SW restart (resilience fallback).
+  // Sending it unconditionally would tear down an active capture in another tab.
+  const removedMode = tabStates.get(tabId)?.mode ?? null;
+  if (supportsAudioCapture() && (removedMode === "audio" || removedMode === "mic" || removedMode === null)) {
     api.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
-    const anyAudio = [...tabStates.entries()].some(
-      ([id, s]) => id !== tabId && s.mode === "audio"
+    const anyCapture = [...tabStates.entries()].some(
+      ([id, s]) => id !== tabId && (s.mode === "audio" || s.mode === "mic")
     );
-    if (!anyAudio) await closeOffscreenDocument();
+    if (!anyCapture) await closeOffscreenDocument();
   }
   tabStates.delete(tabId);
   api.storage.session.remove([`tabState_${tabId}`]).catch(() => {});

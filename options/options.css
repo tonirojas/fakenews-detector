@@ -180,3 +180,41 @@ input:focus {
 :root[data-theme="dark"] .field-error {
   color: #f87171;
 }
+
+/* ── Microphone permission section ─────────────────────────── */
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin-bottom: 8px;
+}
+
+.btn-mic-grant {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-mic-grant:hover:not(:disabled) { background: #6d28d9; }
+
+.btn-mic-grant:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mic-perm-status {
+  font-size: 13px;
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.mic-perm-success { color: var(--success-text); }
+.mic-perm-error   { color: #dc2626; }
+
+:root[data-theme="dark"] .mic-perm-error { color: #f87171; }

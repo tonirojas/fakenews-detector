@@ -127,6 +127,19 @@
 
     <div class="divider"></div>
 
+    <!-- Microphone permission (Chrome / Edge only) -->
+    <div id="mic-permission-section">
+      <h2 class="section-title">Micrófono (modo vigilante)</h2>
+      <p class="hint" style="margin-bottom: 12px;">
+        El modo vigilante captura el micrófono de tu equipo para verificar conversaciones presenciales.
+        Chrome necesita que concedas el permiso de micrófono una vez desde esta página estable — el popup se cierra antes de que puedas aceptarlo.
+      </p>
+      <button class="btn-mic-grant" id="btn-grant-mic">Conceder acceso al micrófono</button>
+      <p class="mic-perm-status" id="mic-perm-status"></p>
+    </div>
+
+    <div class="divider"></div>
+
     <button class="btn-save" id="btn-save">Guardar configuración</button>
     <span class="confirm-msg" id="confirm-msg">✓ Guardado</span>
   </div>

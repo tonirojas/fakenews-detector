@@ -6,7 +6,7 @@
 
 import { TIER_LABELS, getProvider, defaultModelFor } from "../lib/models.js";
 import { validateBaseUrl } from "../lib/providers.js";
-import { api } from "../lib/webext.js";
+import { api, supportsAudioCapture } from "../lib/webext.js";
 import { initTheme } from "../lib/theme.js";
 
 initTheme(document);
@@ -336,3 +336,48 @@ api.storage.onChanged.addListener((changes, area) => {
     selectTheme.value = changes.theme.newValue ?? "auto";
   }
 });
+
+// ---------------------------------------------------------------------------
+// Microphone permission section (Chrome / Edge only)
+// ---------------------------------------------------------------------------
+const micPermissionSection = document.getElementById("mic-permission-section");
+const btnGrantMic          = document.getElementById("btn-grant-mic");
+const micPermStatus        = document.getElementById("mic-perm-status");
+
+if (!supportsAudioCapture()) {
+  // Firefox: hide the section and show a note instead
+  if (micPermissionSection) {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.style.marginBottom = "0";
+    note.textContent =
+      "El modo micrófono (vigilante) no está disponible en Firefox — " +
+      "solo Chrome y Edge admiten la captura de audio.";
+    micPermissionSection.innerHTML = "";
+    const title = document.createElement("h2");
+    title.className = "section-title";
+    title.textContent = "Micrófono (modo vigilante)";
+    micPermissionSection.appendChild(title);
+    micPermissionSection.appendChild(note);
+  }
+} else if (btnGrantMic) {
+  btnGrantMic.addEventListener("click", async () => {
+    btnGrantMic.disabled = true;
+    micPermStatus.textContent = "";
+    micPermStatus.className = "mic-perm-status";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Permission granted — stop tracks immediately; we only needed the prompt
+      stream.getTracks().forEach((t) => t.stop());
+      micPermStatus.textContent =
+        "Permiso de micrófono concedido. Ya puedes usar el modo vigilante desde el popup.";
+      micPermStatus.className = "mic-perm-status mic-perm-success";
+    } catch {
+      micPermStatus.textContent =
+        "No se pudo obtener el permiso del micrófono (denegado o sin dispositivo).";
+      micPermStatus.className = "mic-perm-status mic-perm-error";
+    } finally {
+      btnGrantMic.disabled = false;
+    }
+  });
+}

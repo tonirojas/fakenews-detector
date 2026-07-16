@@ -23,6 +23,8 @@ const noKeyNotice    = document.getElementById("no-key-notice");
 const btnText        = document.getElementById("btn-text");
 const btnAudio       = document.getElementById("btn-audio");
 const audioHint      = document.getElementById("audio-hint");
+const btnMic         = document.getElementById("btn-mic");
+const micHint        = document.getElementById("mic-hint");
 const btnStop        = document.getElementById("btn-stop");
 const btnPanel       = document.getElementById("btn-panel");
 const btnTheme       = document.getElementById("btn-theme");
@@ -43,10 +45,12 @@ function setStatus(text, cssClass) {
 }
 
 function showAnalyzing(mode) {
-  const label = mode === "audio" ? "audio/vídeo" : "texto";
+  const labels = { audio: "audio/vídeo", text: "texto", mic: "micrófono" };
+  const label = labels[mode] ?? "texto";
   setStatus(`Analizando ${label}…`, "analyzing");
   btnText.style.display  = "none";
   btnAudio.style.display = "none";
+  if (btnMic) btnMic.style.display = "none";
   btnStop.style.display  = "";
 }
 
@@ -54,12 +58,14 @@ function showStopped() {
   setStatus("Detenido");
   btnText.style.display  = "";
   btnAudio.style.display = "";
+  if (btnMic) btnMic.style.display = "";
   btnStop.style.display  = "none";
 }
 
 function setButtonsDisabled(disabled) {
   btnText.disabled  = disabled;
   btnAudio.disabled = disabled;
+  if (btnMic) btnMic.disabled = disabled;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +119,9 @@ async function init() {
     btnAudio.disabled        = true;
     audioHint.style.display  = "";
     audioHint.textContent    = AUDIO_CAPTURE_UNSUPPORTED;
+    // Mic capture also requires the offscreen API — disable on Firefox
+    if (btnMic) btnMic.disabled = true;
+    if (micHint) micHint.textContent = AUDIO_CAPTURE_UNSUPPORTED;
   }
 
   // Get active tab
@@ -136,9 +145,8 @@ async function init() {
   const provInfo = getProvider(provider);
   if (provInfo.requiresKey !== false && !hasKey) {
     noKeyNotice.style.display = "";
-    setButtonsDisabled(true);
-    // Re-disable audio if it was enabled by supportsAudioCapture
-    btnAudio.disabled = true;
+    setButtonsDisabled(true); // disables text, audio, and mic buttons
+    btnAudio.disabled = true; // ensure audio stays disabled even if already enabled above
   }
 
   // Get current tab state from background
@@ -173,6 +181,20 @@ btnAudio.addEventListener("click", () => {
   currentMode = "audio";
   showAnalyzing("audio");
 });
+
+// Mic capture: the permission prompt lives in Options (stable tab context).
+// Here we just send the start message — the offscreen doc opens its own getUserMedia.
+// If permission was never granted, background.js surfaces a Spanish error pointing
+// the user to Configuración → Micrófono.
+if (btnMic) {
+  btnMic.addEventListener("click", () => {
+    if (!activeTabId) return;
+    if (!supportsAudioCapture()) return; // button already disabled on Firefox
+    api.runtime.sendMessage({ type: "START_MIC_ANALYSIS", tabId: activeTabId }).catch(() => {});
+    currentMode = "mic";
+    showAnalyzing("mic");
+  });
+}
 
 btnStop.addEventListener("click", () => {
   if (!activeTabId) return;

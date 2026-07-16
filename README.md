@@ -43,38 +43,64 @@ An AI-assisted claim-checking browser extension (Manifest V3).
 
 ---
 
-## Install (Developer Mode — Chrome / Edge)
+## Installation
 
-1. Clone or download this repository.
-2. Open Chrome (`chrome://extensions`) or Edge (`edge://extensions`).
-3. Enable **Developer mode** (top-right toggle).
-4. Click **Load unpacked** and select the project folder (`FAKENEWS-DETECTOR-PROJECT`).
-5. The extension icon appears in the toolbar. Click it to open the popup.
+No build step is required for Chrome and Edge. Vanilla ES modules only.
 
-> No build step required. Vanilla ES modules only.
+### Instalar en Chrome
 
----
+1. Clone or download this repository to your computer.
+2. Open a new tab and go to `chrome://extensions`.
+3. Enable the **Developer mode** toggle in the top-right corner.
+4. Click **Load unpacked**.
+5. Select the `FAKENEWS-DETECTOR-PROJECT` folder (the one that contains `manifest.json`).
+6. The FakeNews Detector icon appears in the toolbar. Click it to open the popup.
+7. Click **Configuración** in the popup (or right-click the icon → **Options**).
+8. Choose your AI provider, enter your API key, and click **Guardar configuración**.
+9. To pin the icon to the toolbar: click the puzzle-piece (Extensions) icon → click the pin next to FakeNews Detector.
 
-## Building for Firefox
+### Instalar en Edge
 
-Run the build script (Python 3, no dependencies beyond stdlib):
+1. Clone or download this repository to your computer.
+2. Open a new tab and go to `edge://extensions`.
+3. Enable the **Developer mode** toggle in the bottom-left panel.
+4. Click **Load unpacked**.
+5. Select the `FAKENEWS-DETECTOR-PROJECT` folder.
+6. The icon appears in the toolbar. Click it to open the popup.
+7. Click **Configuración** and set your provider and API key.
 
-```
-python scripts/build_firefox.py
-```
+### Instalar en Firefox (escritorio)
 
-Output is written to `dist/firefox/` (gitignored).
+Firefox requires a separate build because its manifest differs from Chrome's.
 
-### Loading in Firefox desktop
+1. Make sure Python 3 is installed (`python --version`).
+2. In a terminal, run the build script from the project folder:
+   ```
+   python scripts/build_firefox.py
+   ```
+   The output is written to `dist/firefox/` (gitignored).
+3. Open Firefox and go to `about:debugging#/runtime/this-firefox`.
+4. Click **Load Temporary Add-on…**.
+5. Navigate to `dist/firefox/` and select `manifest.json`.
+6. The extension loads. Note: **temporary add-ons are removed when Firefox restarts** — you must reload it each time.
 
-1. Navigate to `about:debugging` → **This Firefox** → **Load Temporary Add-on**.
-2. Select `dist/firefox/manifest.json`.
+**Host permissions on Firefox:** Firefox treats host permissions as opt-in by default. If the extension does not activate on a site, go to `about:addons` → click the extension → **Permissions** tab and enable site access for the required domains.
 
-> **Temporary add-ons** are removed when Firefox restarts. For a permanent non-signed install, use **Firefox Nightly** and add the extension to a [custom extension collection](https://support.mozilla.org/en-US/kb/use-extensions-android).
+**Audio and microphone modes are not available on Firefox.** The `offscreen` and `tabCapture` APIs are Chrome/Edge-only. Text analysis works fully.
 
-### Host permissions on Firefox
+> For a permanent non-signed install, use Firefox Nightly with a [custom extension collection](https://support.mozilla.org/en-US/kb/use-extensions-android).
 
-Firefox treats host permissions as opt-in by default. After loading the extension, go to `about:addons` → the extension → **Permissions** tab and enable the required domains if the extension does not trigger for a site.
+### Conceder acceso al micrófono (Chrome / Edge)
+
+The microphone (vigilante) mode requires a one-time permission grant from a stable page — Chrome closes the popup before you can accept the permission dialog.
+
+1. Open the extension options: click the toolbar icon → **Configuración**.
+2. Scroll to the **Micrófono (modo vigilante)** section.
+3. Click **Conceder acceso al micrófono**.
+4. Accept the browser permission dialog that appears.
+5. You will see the confirmation: "Permiso de micrófono concedido." You only need to do this once per browser profile.
+
+After granting permission, click **Analizar micrófono (vigilante)** in the popup at any time to start listening.
 
 ---
 
@@ -158,6 +184,41 @@ OpenRouter provides access to hundreds of models through a single OpenAI-compati
 | Whisper via Groq (fast) | Groq Whisper | Set Groq key + URL `https://api.groq.com/openai/v1`, model `whisper-large-v3-turbo` |
 
 > **Firefox:** Audio capture requires `tabCapture` and `offscreen` APIs which are unavailable in Firefox. The audio button is disabled automatically and a hint is shown.
+
+---
+
+## Micrófono — modo vigilante
+
+In addition to capturing tab audio, the extension can listen to your computer's **microphone** — useful for fact-checking live, in-person conversations or anything playing through your speakers when tab capture is unavailable.
+
+### How to use it
+
+1. **First time only** — open the extension **Options**, scroll to the **Micrófono (modo vigilante)** section, and click **Conceder acceso al micrófono**. Accept the browser permission dialog that appears.
+2. **After permission is granted** — click **Analizar micrófono (vigilante)** in the popup. The extension hands control to an offscreen document, which records in 6-second segments, transcribes each one with the configured STT pipeline, and fact-checks the result.
+3. Audio goes **directly** from your browser to your configured STT provider — no relay server.
+
+> **Privacy note:** Mic audio is sent to the same STT provider you configured for tab audio. Use a self-hosted Whisper server for fully local processing.
+
+### Chrome and Edge only
+
+Microphone capture uses the same offscreen-document API as tab audio capture — both are unavailable in Firefox. The button is automatically disabled in Firefox and a note is shown.
+
+---
+
+## VU meter — real-time capture feedback
+
+While any audio capture is active (tab or microphone), the side panel displays a **VU meter** — a row of 16 LED-style bars in the panel header — so you can confirm the extension is actually picking up sound.
+
+| Bar color | Meaning |
+|---|---|
+| **Green** (bars 1–10) | Quiet signal |
+| **Amber** (bars 11–13) | Medium level |
+| **Red** (bars 14–16) | Strong / peak signal |
+| **All dark** | No capture active, or silence |
+
+The meter animates smoothly: the display decays toward zero within ~400 ms after capture stops or audio falls silent. The label below the bars shows **"Nivel de audio (pestaña)"** or **"Nivel de audio (micrófono)"** depending on which mode is active.
+
+> Both audio capture modes (tab audio and microphone) require **Chrome or Edge**. The VU meter only lights up during those modes.
 
 ---
 
