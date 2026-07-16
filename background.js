@@ -19,6 +19,7 @@
 import { factCheck, transcribe, NoSttError } from "./lib/providers.js";
 import { ERRORS } from "./lib/strings.js";
 import { defaultModelFor } from "./lib/models.js";
+import { api, supportsAudioCapture } from "./lib/webext.js";
 
 // ---------------------------------------------------------------------------
 // Per-tab session state
@@ -60,7 +61,7 @@ async function persistState(tabId) {
   // Only persist serialisable subset (no functions)
   const { mode, results, lastCheckTs } = state;
   try {
-    await chrome.storage.session.set({ [`tabState_${tabId}`]: { mode, results, lastCheckTs } });
+    await api.storage.session.set({ [`tabState_${tabId}`]: { mode, results, lastCheckTs } });
   } catch {
     // session storage may not be available in older profiles — ignore
   }
@@ -82,16 +83,16 @@ const tabLastUrl = new Map(); // tabId → last known url (for recency cleanup)
 const AUTO_RECENCY_MAX = 50;        // max entries in recency map
 const AUTO_RECENCY_MS  = 10 * 60 * 1000; // 10 minutes
 
-// Whether autoRecentUrls has been restored from chrome.storage.session this SW lifetime
+// Whether autoRecentUrls has been restored from api.storage.session this SW lifetime
 let autoRecentUrlsRestored = false;
 
 /**
- * Persist the recency map to chrome.storage.session so it survives MV3 SW restarts
+ * Persist the recency map to api.storage.session so it survives MV3 SW restarts
  * within the same browser session.
  */
 async function persistAutoRecentUrls() {
   try {
-    await chrome.storage.session.set({
+    await api.storage.session.set({
       autoRecentUrls: [...autoRecentUrls.entries()],
     });
   } catch {
@@ -100,15 +101,15 @@ async function persistAutoRecentUrls() {
 }
 
 /**
- * Lazily restore the recency map from chrome.storage.session on the first call
- * after a SW restart. chrome.storage.session is cleared when the browser closes,
+ * Lazily restore the recency map from api.storage.session on the first call
+ * after a SW restart. api.storage.session is cleared when the browser closes,
  * which matches the desired 10-minute dedup semantics.
  */
 async function restoreAutoRecentUrls() {
   if (autoRecentUrlsRestored) return;
   autoRecentUrlsRestored = true;
   try {
-    const data = await chrome.storage.session.get(["autoRecentUrls"]);
+    const data = await api.storage.session.get(["autoRecentUrls"]);
     const entries = data.autoRecentUrls;
     if (Array.isArray(entries)) {
       for (const [url, ts] of entries) {
@@ -132,8 +133,9 @@ async function loadSettings() {
     checkIntervalSec: 12,
     language: "es",
     autoMode: false,
+    theme: "auto",
   };
-  const stored = await chrome.storage.local.get(Object.keys(defaults));
+  const stored = await api.storage.local.get(Object.keys(defaults));
   return { ...defaults, ...stored };
 }
 
@@ -152,13 +154,13 @@ function quickHash(str) {
 // Broadcast helpers (fire-and-forget)
 // ---------------------------------------------------------------------------
 function broadcastToTab(tabId, message) {
-  chrome.tabs.sendMessage(tabId, message).catch(() => {
+  api.tabs.sendMessage(tabId, message).catch(() => {
     // Content script may not be loaded on this tab — ignore
   });
 }
 
 function broadcastToRuntime(message) {
-  chrome.runtime.sendMessage(message).catch(() => {
+  api.runtime.sendMessage(message).catch(() => {
     // Side panel may not be open — ignore
   });
 }
@@ -183,16 +185,17 @@ function broadcastError(tabId, spanishMessage) {
 }
 
 // ---------------------------------------------------------------------------
-// Offscreen document management
+// Offscreen document management (Chrome / Edge only)
+// Guard all calls behind supportsAudioCapture() — these APIs do not exist in Firefox.
 // ---------------------------------------------------------------------------
-const OFFSCREEN_URL = chrome.runtime.getURL("offscreen/offscreen.html");
+const OFFSCREEN_URL = api.runtime.getURL("offscreen/offscreen.html");
 
 async function ensureOffscreenDocument() {
-  const existing = await chrome.offscreen.hasDocument();
+  const existing = await api.offscreen.hasDocument();
   if (!existing) {
-    await chrome.offscreen.createDocument({
+    await api.offscreen.createDocument({
       url: OFFSCREEN_URL,
-      reasons: [chrome.offscreen.Reason.USER_MEDIA],
+      reasons: [api.offscreen.Reason.USER_MEDIA],
       justification: "Capture tab audio stream for transcription and fact-checking.",
     });
   }
@@ -200,8 +203,8 @@ async function ensureOffscreenDocument() {
 
 async function closeOffscreenDocument() {
   try {
-    const exists = await chrome.offscreen.hasDocument();
-    if (exists) await chrome.offscreen.closeDocument();
+    const exists = await api.offscreen.hasDocument();
+    if (exists) await api.offscreen.closeDocument();
   } catch {
     // May already be closed
   }
@@ -215,7 +218,7 @@ async function startTextAnalysis(tabId) {
   state.mode = "text";
   // Ask content script to extract text
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_TEXT" });
+    await api.tabs.sendMessage(tabId, { type: "EXTRACT_TEXT" });
   } catch {
     broadcastError(tabId, ERRORS.TAB_NOT_FOUND);
   }
@@ -247,7 +250,7 @@ async function handlePageText(tabId, text) {
   // delete-before-set maintains true LRU insertion order so eviction always
   // removes the genuinely oldest entry.
   try {
-    const autoTab = await chrome.tabs.get(tabId);
+    const autoTab = await api.tabs.get(tabId);
     const autoUrl = autoTab?.url ?? "";
     if (autoUrl.startsWith("http://") || autoUrl.startsWith("https://")) {
       autoRecentUrls.delete(autoUrl);
@@ -280,9 +283,15 @@ async function handlePageText(tabId, text) {
 }
 
 // ---------------------------------------------------------------------------
-// Audio analysis flow
+// Audio analysis flow (Chrome / Edge only)
 // ---------------------------------------------------------------------------
 async function startAudioAnalysis(tabId) {
+  // Guard: tabCapture and offscreen APIs are unavailable on Firefox
+  if (!supportsAudioCapture()) {
+    broadcastError(tabId, ERRORS.AUDIO_CAPTURE_UNSUPPORTED);
+    return;
+  }
+
   const state = getState(tabId);
   state.mode = "audio";
   state.transcriptBuffer = [];
@@ -290,7 +299,7 @@ async function startAudioAnalysis(tabId) {
 
   let streamId;
   try {
-    streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+    streamId = await api.tabCapture.getMediaStreamId({ targetTabId: tabId });
   } catch (err) {
     broadcastError(tabId, `No se pudo capturar el audio de la pestaña: ${err.message?.slice(0, 80)}`);
     state.mode = null;
@@ -300,7 +309,7 @@ async function startAudioAnalysis(tabId) {
   try {
     await ensureOffscreenDocument();
     // Await the offscreen response — getUserMedia can fail (permissions, DRM, etc.)
-    const response = await chrome.runtime.sendMessage({ type: "OFFSCREEN_START", streamId, tabId });
+    const response = await api.runtime.sendMessage({ type: "OFFSCREEN_START", streamId, tabId });
     if (!response?.ok) {
       throw new Error(response?.error ?? "sin respuesta del documento offscreen");
     }
@@ -393,8 +402,8 @@ async function stopAnalysis(tabId) {
   const state = tabStates.get(tabId);
   if (!state) return;
 
-  if (state.mode === "audio") {
-    chrome.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
+  if (state.mode === "audio" && supportsAudioCapture()) {
+    api.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
     // Close offscreen only if no other tab is in audio mode
     const anyAudio = [...tabStates.entries()].some(
       ([id, s]) => id !== tabId && s.mode === "audio"
@@ -458,7 +467,7 @@ async function maybeAutoAnalyze(tabId) {
   // Guard 3 — tab still exists and is active
   let tab;
   try {
-    tab = await chrome.tabs.get(tabId);
+    tab = await api.tabs.get(tabId);
   } catch {
     return; // tab was closed before timer fired
   }
@@ -489,7 +498,7 @@ async function maybeAutoAnalyze(tabId) {
 // ---------------------------------------------------------------------------
 // Message router
 // ---------------------------------------------------------------------------
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type, tabId: msgTabId } = message;
 
   // Resolve tabId: use explicit field, fall back to sender tab
@@ -522,7 +531,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ mode: state.mode, results: state.results, lastCheckTs: state.lastCheckTs });
       } else {
         // Try session storage fallback (SW may have restarted)
-        chrome.storage.session
+        api.storage.session
           .get([`tabState_${tabId}`])
           .then((data) => {
             sendResponse(data[`tabState_${tabId}`] ?? null);
@@ -543,11 +552,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // CRITICAL MV3 RULE: registered synchronously at module top level so they
 // survive service-worker wake-ups. Settings are read INSIDE the handlers.
 // ---------------------------------------------------------------------------
-chrome.tabs.onActivated.addListener(({ tabId }) => {
+api.tabs.onActivated.addListener(({ tabId }) => {
   scheduleAutoAnalyze(tabId);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+api.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Track the latest URL for recency-map cleanup on tab removal
   if (changeInfo.url) {
     tabLastUrl.set(tabId, changeInfo.url);
@@ -562,7 +571,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // ---------------------------------------------------------------------------
 // Cleanup on tab close
 // ---------------------------------------------------------------------------
-chrome.tabs.onRemoved.addListener(async (tabId) => {
+api.tabs.onRemoved.addListener(async (tabId) => {
   // Clean up auto-mode debounce timer
   const timer = autoDebounceTimers.get(tabId);
   if (timer != null) {
@@ -579,26 +588,26 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   }
 
   const state = tabStates.get(tabId);
-  if (state?.mode === "audio") {
+  if (state?.mode === "audio" && supportsAudioCapture()) {
     // Stop the recorder and release resources — same path as STOP_ANALYSIS
-    chrome.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
+    api.runtime.sendMessage({ type: "OFFSCREEN_STOP", tabId }).catch(() => {});
     const anyAudio = [...tabStates.entries()].some(
       ([id, s]) => id !== tabId && s.mode === "audio"
     );
     if (!anyAudio) await closeOffscreenDocument();
   }
   tabStates.delete(tabId);
-  chrome.storage.session.remove([`tabState_${tabId}`]).catch(() => {});
+  api.storage.session.remove([`tabState_${tabId}`]).catch(() => {});
 });
 
 // ---------------------------------------------------------------------------
 // On install: set default settings
 // ---------------------------------------------------------------------------
-chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+api.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === "install") {
-    const existing = await chrome.storage.local.get(["provider"]);
+    const existing = await api.storage.local.get(["provider"]);
     if (!existing.provider) {
-      await chrome.storage.local.set({
+      await api.storage.local.set({
         provider: "anthropic",
         apiKey: "",
         model: defaultModelFor("anthropic"),
@@ -606,6 +615,7 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
         checkIntervalSec: 12,
         language: "es",
         autoMode: false,
+        theme: "auto",
       });
     }
   }

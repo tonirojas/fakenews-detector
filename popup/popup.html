@@ -5,9 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FakeNews Detector</title>
   <link rel="stylesheet" href="popup.css" />
+  <!-- Pre-paint theme: synchronous read from sessionStorage prevents FOUC on repeat opens -->
+  <script>
+    try {
+      var _t = sessionStorage.getItem("theme_resolved");
+      if (_t === "dark" || _t === "light") document.documentElement.setAttribute("data-theme", _t);
+    } catch {}
+  </script>
 </head>
 <body>
-  <h1>FakeNews Detector</h1>
+  <div class="popup-header">
+    <h1>FakeNews Detector</h1>
+    <button id="btn-theme" class="btn-theme"
+            title="Modo oscuro" aria-label="Modo oscuro">🌙</button>
+  </div>
   <p class="provider-line" id="provider-line">Proveedor: —</p>
 
   <div class="status-box" id="status-box">Listo</div>
@@ -19,6 +30,9 @@
   <div class="btn-group">
     <button class="btn-primary" id="btn-text">Analizar texto de la página</button>
     <button class="btn-primary" id="btn-audio">Analizar audio/vídeo</button>
+    <div id="audio-hint" class="audio-hint" style="display:none;">
+      La captura de audio solo está disponible en Chrome y Edge.
+    </div>
     <button class="btn-danger" id="btn-stop" style="display:none;">Detener análisis</button>
     <button class="btn-panel" id="btn-panel">Abrir panel de fuentes</button>
   </div>
@@ -43,6 +57,6 @@
     <a href="#" id="link-options">Configuración</a>
   </div>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

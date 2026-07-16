@@ -1,8 +1,19 @@
 /**
- * sidepanel/sidepanel.js
- * ES module context is NOT available in side panels loaded as plain HTML.
- * Runs as a classic script. Strings inlined (cannot import lib/strings.js).
+ * sidepanel/sidepanel.js — ES module
+ * Displays claim verdicts in the browser side panel (or as a standalone page
+ * on mobile, where the panel falls back to a regular tab).
+ *
+ * Mobile tab-fallback note: when openResultsPanel() opens this page as a tab,
+ * the "active" tab in the current window IS this page. The init() function
+ * detects that case and falls back to the most recently accessed http(s) tab
+ * so it listens on the correct analysis target.
  */
+
+import { api } from "../lib/webext.js";
+import { initTheme } from "../lib/theme.js";
+
+// Apply theme as early as possible to minimise flash of wrong theme
+initTheme(document);
 
 // ---------------------------------------------------------------------------
 // Inline verdict UI map (mirrors lib/strings.js)
@@ -173,32 +184,49 @@ function handleVerdictUpdate(message) {
   renderOverall(message.overall);
   renderClaims();
 
-  chrome.storage.local.get(["provider", "model"]).then((s) => {
+  api.storage.local.get(["provider", "model"]).then((s) => {
     updateStatusLine(null, s.provider);
   }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
 // Init — get active tab + current state
+// Mobile fix: when this page itself is the active tab, fall back to the most
+// recently accessed http(s) tab so we listen on the right analysis target.
 // ---------------------------------------------------------------------------
 async function init() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let [tab] = await api.tabs.query({ active: true, currentWindow: true });
+
+    // Detect the mobile fallback: sidepanel opened as a regular tab means IT
+    // is the "active" tab. Check by comparing the URL to our own extension origin.
+    const ownOrigin = api.runtime.getURL("");
+    if (!tab || tab.url?.startsWith(ownOrigin)) {
+      // Find the most recently accessed http(s) tab in the current window
+      const allTabs = await api.tabs.query({ currentWindow: true });
+      const httpTabs = allTabs.filter(
+        (t) => t.url?.startsWith("http://") || t.url?.startsWith("https://")
+      );
+      // Sort descending by lastAccessed if available (Chrome exposes it; fallback to index order)
+      httpTabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+      tab = httpTabs[0] ?? null;
+    }
+
     if (tab) activeTabId = tab.id;
 
-    const settings = await chrome.storage.local.get(["provider"]);
+    const settings = await api.storage.local.get(["provider"]);
 
     if (activeTabId) {
-      chrome.runtime.sendMessage({ type: "GET_STATE", tabId: activeTabId }, (state) => {
-        if (chrome.runtime.lastError) return;
-        if (state?.results?.length) {
+      api.runtime.sendMessage({ type: "GET_STATE", tabId: activeTabId })
+        .then((state) => {
+          if (!state?.results?.length) return;
           const last = state.results[state.results.length - 1];
           allClaims = last.claims ?? [];
           renderOverall(last.overall);
           renderClaims();
           updateStatusLine(state.mode, settings.provider);
-        }
-      });
+        })
+        .catch(() => {});
     }
   } catch {
     // Side panel may open before a tab is active
@@ -208,7 +236,7 @@ async function init() {
 // ---------------------------------------------------------------------------
 // Message listener
 // ---------------------------------------------------------------------------
-chrome.runtime.onMessage.addListener((message) => {
+api.runtime.onMessage.addListener((message) => {
   if (message.type === "VERDICT_UPDATE") {
     handleVerdictUpdate(message);
   }

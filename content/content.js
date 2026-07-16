@@ -13,6 +13,9 @@
  * import ES modules. Keep in sync with lib/strings.js.
  */
 
+// Cross-browser API shim (mirrors lib/webext.js — cannot import modules here)
+const api = globalThis.browser ?? globalThis.chrome;
+
 // ---------------------------------------------------------------------------
 // Inline verdict UI map (mirrors lib/strings.js VERDICT_UI)
 // ---------------------------------------------------------------------------
@@ -125,12 +128,12 @@ function extractPageText() {
 
 // ---------------------------------------------------------------------------
 // Message listener
-// Guard all chrome.runtime calls — content scripts can become orphaned
+// Guard all api.runtime calls — content scripts can become orphaned
 // when the extension is reloaded (context invalidated).
 // ---------------------------------------------------------------------------
 function safeSendMessage(message) {
   try {
-    chrome.runtime.sendMessage(message).catch(() => {});
+    api.runtime.sendMessage(message).catch(() => {});
   } catch {
     // Extension context invalidated — nothing we can do
   }
@@ -138,7 +141,7 @@ function safeSendMessage(message) {
 
 function setupMessageListener() {
   try {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       switch (message.type) {
         case "EXTRACT_TEXT": {
           const text = extractPageText();

@@ -4,6 +4,11 @@
  */
 
 import { MODEL_CATALOG, TIER_LABELS, defaultModelFor } from "../lib/models.js";
+import { api } from "../lib/webext.js";
+import { initTheme } from "../lib/theme.js";
+
+// Apply theme as early as possible to minimise flash of wrong theme
+initTheme(document);
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -19,6 +24,7 @@ const btnSave          = document.getElementById("btn-save");
 const confirmMsg       = document.getElementById("confirm-msg");
 const modelHint        = document.getElementById("model-hint");
 const sttGroup         = document.getElementById("stt-group");
+const selectTheme      = document.getElementById("select-theme");
 
 const CUSTOM_VALUE = "__custom__";
 
@@ -122,8 +128,8 @@ selectProvider.addEventListener("change", () => {
 // Load saved settings
 // ---------------------------------------------------------------------------
 async function loadSettings() {
-  const data = await chrome.storage.local.get([
-    "provider", "apiKey", "model", "openaiSttKey", "checkIntervalSec",
+  const data = await api.storage.local.get([
+    "provider", "apiKey", "model", "openaiSttKey", "checkIntervalSec", "theme",
   ]);
 
   const provider = data.provider ?? "anthropic";
@@ -131,6 +137,7 @@ async function loadSettings() {
   inputApiKey.value    = data.apiKey ?? "";
   inputSttKey.value    = data.openaiSttKey ?? "";
   inputInterval.value  = String(data.checkIntervalSec ?? 12);
+  selectTheme.value    = data.theme ?? "auto";
 
   // Cache the stored model for this provider so switching providers and back restores it
   storedModelByProvider[provider] = data.model || null;
@@ -157,13 +164,14 @@ btnSave.addEventListener("click", async () => {
 
   const interval = Math.max(5, Math.min(300, parseInt(inputInterval.value, 10) || 12));
 
-  await chrome.storage.local.set({
+  await api.storage.local.set({
     provider,
     apiKey:           inputApiKey.value,   // stored as-is, never logged
     model,
     openaiSttKey:     inputSttKey.value,
     checkIntervalSec: interval,
     language:         "es",
+    theme:            selectTheme.value,
   });
 
   confirmMsg.classList.add("visible");
@@ -171,3 +179,12 @@ btnSave.addEventListener("click", async () => {
 });
 
 loadSettings();
+
+// Keep the theme dropdown in sync when another surface (e.g. the popup toggle)
+// writes a new theme value while this options page is open.  Without this,
+// clicking Save after a popup-initiated change would silently revert the theme.
+api.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.theme) {
+    selectTheme.value = changes.theme.newValue ?? "auto";
+  }
+});

@@ -1,22 +1,39 @@
 /**
- * popup/popup.js
+ * popup/popup.js — ES module
  * Runs in the popup context — short-lived, no persistent state.
  */
 
+import { api, supportsAudioCapture, openResultsPanel } from "../lib/webext.js";
+import { initTheme, applyTheme } from "../lib/theme.js";
+
+// Apply theme as early as possible to minimise flash of wrong theme
+initTheme(document);
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 const PROVIDER_NAMES = {
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
   gemini: "Google Gemini",
 };
 
-// UI references
+// Spanish message for unsupported audio capture (must match background.js)
+const AUDIO_CAPTURE_UNSUPPORTED =
+  "La captura de audio solo está disponible en Chrome y Edge.";
+
+// ---------------------------------------------------------------------------
+// DOM references
+// ---------------------------------------------------------------------------
 const providerLine   = document.getElementById("provider-line");
 const statusBox      = document.getElementById("status-box");
 const noKeyNotice    = document.getElementById("no-key-notice");
 const btnText        = document.getElementById("btn-text");
 const btnAudio       = document.getElementById("btn-audio");
+const audioHint      = document.getElementById("audio-hint");
 const btnStop        = document.getElementById("btn-stop");
 const btnPanel       = document.getElementById("btn-panel");
+const btnTheme       = document.getElementById("btn-theme");
 const linkOptions    = document.getElementById("link-options");
 const toggleAutoMode = document.getElementById("toggle-auto-mode");
 
@@ -53,16 +70,67 @@ function setButtonsDisabled(disabled) {
 }
 
 // ---------------------------------------------------------------------------
+// Theme toggle button
+// ---------------------------------------------------------------------------
+function updateThemeButton(resolvedTheme) {
+  if (resolvedTheme === "dark") {
+    btnTheme.textContent  = "☀";
+    btnTheme.title        = "Modo claro";
+    btnTheme.setAttribute("aria-label", "Modo claro");
+  } else {
+    btnTheme.textContent  = "🌙";
+    btnTheme.title        = "Modo oscuro";
+    btnTheme.setAttribute("aria-label", "Modo oscuro");
+  }
+}
+
+function currentResolvedTheme() {
+  return document.documentElement.getAttribute("data-theme") ?? "light";
+}
+
+// Sync button icon with the data-theme attribute whenever it changes
+// (covers live storage changes handled by initTheme)
+new MutationObserver(() => {
+  updateThemeButton(currentResolvedTheme());
+}).observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ["data-theme"],
+});
+
+btnTheme.addEventListener("click", async () => {
+  const { theme: stored } = await api.storage.local.get(["theme"]);
+  const resolved = currentResolvedTheme(); // "light" | "dark" — already resolved by initTheme
+  // Clicking always commits to an explicit value; if the stored setting was "auto"
+  // (OS-follow), it is intentionally replaced by the user's explicit choice here.
+  const next = resolved === "dark" ? "light" : "dark";
+  await api.storage.local.set({ theme: next });
+  applyTheme(document, next);
+  updateThemeButton(next);
+});
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 async function init() {
+  // Apply initial theme button state (data-theme may already be set by initTheme)
+  updateThemeButton(currentResolvedTheme());
+
+  // Handle browsers that do not support audio capture (Firefox)
+  if (!supportsAudioCapture()) {
+    btnAudio.disabled        = true;
+    audioHint.style.display  = "";
+    audioHint.textContent    = AUDIO_CAPTURE_UNSUPPORTED;
+  }
+
   // Get active tab
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   if (!tab) { setStatus("No se pudo obtener la pestaña activa.", "error"); return; }
   activeTabId = tab.id;
 
   // Load settings
-  const settings = await chrome.storage.local.get(["provider", "apiKey", "model", "autoMode"]);
+  const settings = await api.storage.local.get([
+    "provider", "apiKey", "model", "autoMode",
+  ]);
   const provider  = settings.provider ?? "anthropic";
   hasKey          = !!settings.apiKey;
 
@@ -73,40 +141,46 @@ async function init() {
   if (!hasKey) {
     noKeyNotice.style.display = "";
     setButtonsDisabled(true);
+    // Re-disable audio if it was enabled by supportsAudioCapture
+    btnAudio.disabled = true;
   }
 
   // Get current tab state from background
-  chrome.runtime.sendMessage({ type: "GET_STATE", tabId: activeTabId }, (state) => {
-    if (chrome.runtime.lastError) return; // SW may have restarted
-    currentMode = state?.mode ?? null;
-    if (currentMode) {
-      showAnalyzing(currentMode);
-    } else {
+  api.runtime.sendMessage({ type: "GET_STATE", tabId: activeTabId })
+    .then((state) => {
+      currentMode = state?.mode ?? null;
+      if (currentMode) {
+        showAnalyzing(currentMode);
+      } else {
+        showStopped();
+      }
+    })
+    .catch(() => {
+      // Service worker may have restarted
       showStopped();
-    }
-  });
+    });
 }
 
 // ---------------------------------------------------------------------------
 // Buttons
 // ---------------------------------------------------------------------------
-btnText.addEventListener("click", async () => {
+btnText.addEventListener("click", () => {
   if (!activeTabId) return;
-  chrome.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId });
+  api.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId }).catch(() => {});
   currentMode = "text";
   showAnalyzing("text");
 });
 
-btnAudio.addEventListener("click", async () => {
+btnAudio.addEventListener("click", () => {
   if (!activeTabId) return;
-  chrome.runtime.sendMessage({ type: "START_AUDIO_ANALYSIS", tabId: activeTabId });
+  api.runtime.sendMessage({ type: "START_AUDIO_ANALYSIS", tabId: activeTabId }).catch(() => {});
   currentMode = "audio";
   showAnalyzing("audio");
 });
 
 btnStop.addEventListener("click", () => {
   if (!activeTabId) return;
-  chrome.runtime.sendMessage({ type: "STOP_ANALYSIS", tabId: activeTabId });
+  api.runtime.sendMessage({ type: "STOP_ANALYSIS", tabId: activeTabId }).catch(() => {});
   currentMode = null;
   showStopped();
 });
@@ -115,28 +189,28 @@ btnStop.addEventListener("click", () => {
 toggleAutoMode.addEventListener("change", async () => {
   const enabled = toggleAutoMode.checked;
   try {
-    await chrome.storage.local.set({ autoMode: enabled });
+    await api.storage.local.set({ autoMode: enabled });
   } catch {
-    if (chrome.runtime.lastError) { /* storage unavailable — ignore */ }
+    // storage unavailable — ignore
   }
 
   // Toggling ON: immediately start analysis of the current tab (if idle)
   if (enabled && activeTabId && currentMode === null) {
     if (!hasKey) return; // no API key configured — skip
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await api.tabs.query({ active: true, currentWindow: true });
     if (!tab?.url?.startsWith("http")) return; // non-http URL — skip
-    chrome.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId });
+    api.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId }).catch(() => {});
     currentMode = "text";
     showAnalyzing("text");
   }
   // Toggling OFF: persist only — do not disturb any running analysis
 });
 
-// sidePanel.open MUST be called directly inside a click handler (user gesture required)
+// openResultsPanel MUST be called directly inside the click handler (user gesture required)
 btnPanel.addEventListener("click", async () => {
   if (!activeTabId) return;
   try {
-    await chrome.sidePanel.open({ tabId: activeTabId });
+    await openResultsPanel(activeTabId);
   } catch (err) {
     setStatus(`Error al abrir el panel: ${err.message?.slice(0, 60)}`, "error");
   }
@@ -144,13 +218,13 @@ btnPanel.addEventListener("click", async () => {
 
 linkOptions.addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.runtime.openOptionsPage();
+  api.runtime.openOptionsPage();
 });
 
 // ---------------------------------------------------------------------------
 // Listen for updates while popup is open
 // ---------------------------------------------------------------------------
-chrome.runtime.onMessage.addListener((message) => {
+api.runtime.onMessage.addListener((message) => {
   if (message.tabId !== activeTabId) return;
 
   if (message.type === "VERDICT_UPDATE") {

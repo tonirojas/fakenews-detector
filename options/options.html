@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FakeNews Detector — Configuración</title>
   <link rel="stylesheet" href="options.css" />
+  <!-- Pre-paint theme: synchronous read from sessionStorage prevents FOUC on repeat opens -->
+  <script>
+    try {
+      var _t = sessionStorage.getItem("theme_resolved");
+      if (_t === "dark" || _t === "light") document.documentElement.setAttribute("data-theme", _t);
+    } catch {}
+  </script>
 </head>
 <body>
   <div class="container">
@@ -13,9 +20,22 @@
 
     <div class="warning-box">
       <strong>Aviso de privacidad:</strong> Las claves de API se almacenan localmente en este dispositivo
-      (<code>chrome.storage.local</code>). El contenido de las páginas y el audio capturado se envían
+      (<code>storage.local</code>). El contenido de las páginas y el audio capturado se envían
       directamente a la API del proveedor seleccionado. Ningún dato pasa por servidores propios de esta extensión.
     </div>
+
+    <!-- Theme -->
+    <div class="form-group">
+      <label for="select-theme">Tema</label>
+      <select id="select-theme">
+        <option value="auto">Automático (sistema)</option>
+        <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
+      </select>
+      <p class="hint">El tema automático sigue la configuración de color del sistema operativo.</p>
+    </div>
+
+    <div class="divider"></div>
 
     <!-- Provider -->
     <div class="form-group">

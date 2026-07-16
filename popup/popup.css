@@ -1,41 +1,146 @@
 /* popup/popup.css */
+
+/* ── Color tokens ──────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg:                        #ffffff;
+  --surface:                   #f9fafb;
+
+  /* Text */
+  --text:                      #1f2937;
+  --text-strong:               #111827;
+  --text-muted:                #6b7280;
+  --text-secondary:            #374151;
+
+  /* Borders */
+  --border:                    #e5e7eb;
+
+  /* Link */
+  --link:                      #4b5563;
+
+  /* Toggle switch */
+  --toggle-off:                #d1d5db;
+  --toggle-on:                 #1d4ed8;
+  --toggle-knob:               #ffffff;
+
+  /* Theme button */
+  --theme-btn-hover:           #f3f4f6;
+
+  /* Status box modifiers (not verdict colours) */
+  --status-error-bg:           #fff1f1;
+  --status-error-border:       #fca5a5;
+  --status-error-text:         #b91c1c;
+  --status-analyzing-bg:       #eff6ff;
+  --status-analyzing-border:   #bfdbfe;
+  --status-analyzing-text:     #1d4ed8;
+
+  /* No-API-key notice */
+  --no-key-bg:                 #fffbeb;
+  --no-key-border:             #fde68a;
+  --no-key-text:               #b45309;
+}
+
+:root[data-theme="dark"] {
+  --bg:                        #111827;
+  --surface:                   #1f2937;
+  --text:                      #f3f4f6;
+  --text-strong:               #f9fafb;
+  --text-muted:                #9ca3af;
+  --text-secondary:            #d1d5db;
+  --border:                    #374151;
+  --link:                      #9ca3af;
+  --toggle-off:                #4b5563;
+  --toggle-on:                 #2563eb;
+  --toggle-knob:               #f3f4f6;
+  --theme-btn-hover:           #374151;
+  --status-error-bg:           #2d0000;
+  --status-error-border:       #7f1d1d;
+  --status-error-text:         #fca5a5;
+  --status-analyzing-bg:       #172554;
+  --status-analyzing-border:   #1e40af;
+  --status-analyzing-text:     #bfdbfe;
+  --no-key-bg:                 #1c1300;
+  --no-key-border:             #78350f;
+  --no-key-text:               #fbbf24;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 14px;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text);
+  background: var(--bg);
   width: 280px;
   padding: 16px;
+}
+
+/* ── Header row (title + theme toggle) ─────────────────────── */
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 
 h1 {
   font-size: 15px;
   font-weight: 700;
-  color: #111827;
-  margin-bottom: 4px;
+  color: var(--text-strong);
 }
 
+.btn-theme {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  /* override global button width */
+  width: auto;
+  font-size: 15px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-theme:hover { color: var(--text); background: var(--theme-btn-hover); }
+
+/* ── Provider line ──────────────────────────────────────────── */
 .provider-line {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 14px;
 }
 
+/* ── Status box ─────────────────────────────────────────────── */
 .status-box {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 14px;
   font-size: 13px;
   min-height: 38px;
+  color: var(--text);
 }
 
-.status-box.error { border-color: #fca5a5; background: #fff1f1; color: #b91c1c; }
-.status-box.analyzing { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.status-box.error {
+  border-color: var(--status-error-border);
+  background: var(--status-error-bg);
+  color: var(--status-error-text);
+}
 
+.status-box.analyzing {
+  border-color: var(--status-analyzing-border);
+  background: var(--status-analyzing-bg);
+  color: var(--status-analyzing-text);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
 .btn-group {
   display: flex;
   flex-direction: column;
@@ -58,40 +163,33 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.btn-primary {
-  background: #1d4ed8;
-  color: #fff;
-}
-
+/* Semantic verdict colours are intentionally unchanged in dark mode —
+   they encode meaning (green = true, red = false) and remain readable
+   on dark backgrounds at these saturation levels. */
+.btn-primary { background: #1d4ed8; color: #fff; }
 .btn-primary:hover:not(:disabled) { background: #1e40af; }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
 
-.btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+.btn-danger  { background: #dc2626; color: #fff; }
+.btn-danger:hover:not(:disabled)  { background: #b91c1c; }
 
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
-}
+.btn-panel   { background: #059669; color: #fff; }
+.btn-panel:hover:not(:disabled)   { background: #047857; }
 
-.btn-danger:hover:not(:disabled) { background: #b91c1c; }
-
-.btn-panel {
-  background: #059669;
-  color: #fff;
-}
-
-.btn-panel:hover:not(:disabled) { background: #047857; }
-
+/* ── Divider ─────────────────────────────────────────────────── */
 .divider {
   height: 1px;
-  background: #e5e7eb;
+  background: var(--border);
   margin: 12px 0;
 }
 
+/* ── Footer link ─────────────────────────────────────────────── */
 .footer-link {
   text-align: center;
   margin-top: 10px;
@@ -99,16 +197,14 @@ button:disabled {
 
 .footer-link a {
   font-size: 12px;
-  color: #4b5563;
+  color: var(--link);
   text-decoration: none;
 }
 
 .footer-link a:hover { text-decoration: underline; }
 
-/* Auto-mode toggle section */
-.auto-mode-section {
-  margin-top: 12px;
-}
+/* ── Auto-mode toggle section ────────────────────────────────── */
+.auto-mode-section { margin-top: 12px; }
 
 .auto-mode-row {
   display: flex;
@@ -117,24 +213,22 @@ button:disabled {
   justify-content: space-between;
 }
 
-.auto-mode-text {
-  flex: 1;
-  min-width: 0;
-}
+.auto-mode-text { flex: 1; min-width: 0; }
 
 .auto-mode-label {
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 2px;
 }
 
 .auto-mode-hint {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
+/* ── Toggle switch ───────────────────────────────────────────── */
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -155,7 +249,7 @@ button:disabled {
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: #d1d5db;
+  background: var(--toggle-off);
   border-radius: 10px;
   transition: background 0.2s;
 }
@@ -167,26 +261,30 @@ button:disabled {
   height: 14px;
   left: 3px;
   top: 3px;
-  background: #fff;
+  background: var(--toggle-knob);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   transition: transform 0.2s;
 }
 
-.toggle-switch input:checked + .toggle-slider {
-  background: #1d4ed8;
-}
+.toggle-switch input:checked + .toggle-slider { background: var(--toggle-on); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
 
-.toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(16px);
-}
-
+/* ── No-API-key notice ───────────────────────────────────────── */
 .no-key-notice {
   font-size: 12px;
-  color: #b45309;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--no-key-text);
+  background: var(--no-key-bg);
+  border: 1px solid var(--no-key-border);
   border-radius: 6px;
   padding: 8px 10px;
   margin-bottom: 10px;
+}
+
+/* ── Audio-unsupported hint (Firefox / non-Chrome) ───────────── */
+.audio-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
 }

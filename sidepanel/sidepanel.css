@@ -1,32 +1,71 @@
 /* sidepanel/sidepanel.css */
+
+/* ── Color tokens ──────────────────────────────────────────── */
+:root {
+  --bg:              #f9fafb;
+  --surface:         #ffffff;
+  --text:            #1f2937;
+  --text-strong:     #111827;
+  --text-muted:      #6b7280;
+  --text-secondary:  #374151;
+  --text-faint:      #9ca3af;
+  --border:          #e5e7eb;
+  --surface-alt:     #f3f4f6;
+  --link:            #2563eb;
+  --error-bg:        #fff1f1;
+  --error-border:    #fca5a5;
+  --error-text:      #b91c1c;
+}
+
+:root[data-theme="dark"] {
+  --bg:              #111827;
+  --surface:         #1f2937;
+  --text:            #f3f4f6;
+  --text-strong:     #f9fafb;
+  --text-muted:      #9ca3af;
+  --text-secondary:  #d1d5db;
+  --text-faint:      #6b7280;
+  --border:          #374151;
+  --surface-alt:     #111827;
+  --link:            #60a5fa;
+  --error-bg:        #2d0000;
+  --error-border:    #7f1d1d;
+  --error-text:      #fca5a5;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
-  color: #1f2937;
-  background: #f9fafb;
+  color: var(--text);
+  background: var(--bg);
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* Header */
+/* ── Header ─────────────────────────────────────────────────── */
 .panel-header {
   padding: 14px 16px 10px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .panel-title {
   font-size: 14px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 8px;
 }
 
+/* ── Overall verdict chip ────────────────────────────────────── */
+/* Semantic verdict colours intentionally use fixed values — they encode meaning
+   (green = true, amber = uncertain, red = false) and remain readable on dark
+   backgrounds at their current saturation. */
 .overall-chip {
   display: inline-flex;
   align-items: center;
@@ -39,48 +78,48 @@ body {
   margin-bottom: 6px;
 }
 
-.overall-chip.green       { background: #16a34a; }
-.overall-chip.amber       { background: #d97706; }
-.overall-chip.red         { background: #dc2626; }
-.overall-chip.gray        { background: #6b7280; }
-.overall-chip.none        { background: #9ca3af; color: #fff; }
+.overall-chip.green { background: #16a34a; }
+.overall-chip.amber { background: #d97706; }
+.overall-chip.red   { background: #dc2626; }
+.overall-chip.gray  { background: #6b7280; }
+.overall-chip.none  { background: #9ca3af; }
 
 .confidence-line {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .status-line {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--text-faint);
 }
 
-/* Toolbar */
+/* ── Toolbar ─────────────────────────────────────────────────── */
 .panel-toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding: 6px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .btn-clear {
-  background: #f3f4f6;
+  background: var(--surface-alt);
   border: none;
   border-radius: 6px;
   padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
-.btn-clear:hover { background: #e5e7eb; }
+.btn-clear:hover { background: var(--border); }
 
-/* Claims list */
+/* ── Claims list ─────────────────────────────────────────────── */
 .claims-list {
   flex: 1;
   overflow-y: auto;
@@ -90,18 +129,19 @@ body {
   gap: 10px;
 }
 
+/* ── Claim cards ─────────────────────────────────────────────── */
 .claim-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: 10px;
   padding: 12px 14px;
-  border-left: 4px solid #e5e7eb;
+  border-left: 4px solid var(--border);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
-.claim-card.green  { border-left-color: #16a34a; }
-.claim-card.amber  { border-left-color: #f59e0b; }
-.claim-card.red    { border-left-color: #dc2626; }
-.claim-card.gray   { border-left-color: #9ca3af; }
+.claim-card.green { border-left-color: #16a34a; }
+.claim-card.amber { border-left-color: #f59e0b; }
+.claim-card.red   { border-left-color: #dc2626; }
+.claim-card.gray  { border-left-color: #9ca3af; }
 
 .claim-verdict-chip {
   display: inline-block;
@@ -113,21 +153,21 @@ body {
   margin-bottom: 6px;
 }
 
-.claim-verdict-chip.green  { background: #16a34a; }
-.claim-verdict-chip.amber  { background: #d97706; }
-.claim-verdict-chip.red    { background: #dc2626; }
-.claim-verdict-chip.gray   { background: #6b7280; }
+.claim-verdict-chip.green { background: #16a34a; }
+.claim-verdict-chip.amber { background: #d97706; }
+.claim-verdict-chip.red   { background: #dc2626; }
+.claim-verdict-chip.gray  { background: #6b7280; }
 
 .claim-text {
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 6px;
   line-height: 1.4;
 }
 
 .confidence-bar-wrap {
-  background: #f3f4f6;
+  background: var(--surface-alt);
   border-radius: 4px;
   height: 6px;
   margin-bottom: 6px;
@@ -140,20 +180,20 @@ body {
   transition: width 0.4s;
 }
 
-.confidence-bar-fill.green  { background: #16a34a; }
-.confidence-bar-fill.amber  { background: #f59e0b; }
-.confidence-bar-fill.red    { background: #dc2626; }
-.confidence-bar-fill.gray   { background: #9ca3af; }
+.confidence-bar-fill.green { background: #16a34a; }
+.confidence-bar-fill.amber { background: #f59e0b; }
+.confidence-bar-fill.red   { background: #dc2626; }
+.confidence-bar-fill.gray  { background: #9ca3af; }
 
 .claim-confidence-label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 6px;
 }
 
 .claim-reasoning {
   font-size: 12px;
-  color: #374151;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 8px;
 }
@@ -161,7 +201,7 @@ body {
 .sources-title {
   font-size: 11px;
   font-weight: 700;
-  color: #6b7280;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 4px;
@@ -176,26 +216,25 @@ body {
 
 .sources-list li a {
   font-size: 12px;
-  color: #2563eb;
+  color: var(--link);
   text-decoration: none;
   word-break: break-all;
 }
 
 .sources-list li a:hover { text-decoration: underline; }
 
-/* Empty state */
+/* ── States ──────────────────────────────────────────────────── */
 .empty-state {
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-faint);
   font-size: 13px;
   padding: 40px 20px;
 }
 
-/* Error banner */
 .error-banner {
-  background: #fff1f1;
-  border: 1px solid #fca5a5;
-  color: #b91c1c;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;

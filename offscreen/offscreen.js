@@ -1,7 +1,10 @@
 /**
- * offscreen/offscreen.js
+ * offscreen/offscreen.js — ES module
  * Runs in the offscreen document — has access to getUserMedia and MediaRecorder.
  * One recorder at a time. Receives OFFSCREEN_START / OFFSCREEN_STOP from background.js.
+ *
+ * This document is only created when supportsAudioCapture() is true (Chrome / Edge).
+ * Firefox never reaches this code path.
  *
  * Flow:
  *   1. background sends OFFSCREEN_START {streamId, tabId}
@@ -11,6 +14,8 @@
  *   5. On OFFSCREEN_STOP: stop recorder + release tracks
  */
 
+import { api } from "../lib/webext.js";
+
 let mediaRecorder = null;
 let audioContext  = null;
 let activeTabId   = null;
@@ -18,7 +23,7 @@ let activeTabId   = null;
 // ---------------------------------------------------------------------------
 // Message listener
 // ---------------------------------------------------------------------------
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "OFFSCREEN_START") {
     startCapture(message.streamId, message.tabId)
       .then(() => sendResponse({ ok: true }))
@@ -64,7 +69,7 @@ async function startCapture(streamId, tabId) {
   mediaRecorder.addEventListener("dataavailable", (event) => {
     if (!event.data || event.data.size === 0) return;
     blobToBase64(event.data).then((base64) => {
-      chrome.runtime.sendMessage({
+      api.runtime.sendMessage({
         type: "AUDIO_CHUNK",
         tabId: activeTabId,
         base64,
