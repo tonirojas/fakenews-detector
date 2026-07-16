@@ -11,6 +11,7 @@
 
 import { api } from "../lib/webext.js";
 import { initTheme } from "../lib/theme.js";
+import { getProvider } from "../lib/models.js";
 
 // Apply theme as early as possible to minimise flash of wrong theme
 initTheme(document);
@@ -25,11 +26,6 @@ const VERDICT_UI = {
   unverifiable: { label: "Sin datos suficientes para verificar", colorClass: "gray"  },
 };
 
-const PROVIDER_NAMES = {
-  anthropic: "Anthropic",
-  openai:    "OpenAI",
-  gemini:    "Gemini",
-};
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -168,7 +164,7 @@ function updateStatusLine(mode, provider) {
   const modeLabel = mode === "audio" ? "Audio/vídeo" : mode === "text" ? "Texto" : "—";
   const now = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   statusLine.textContent =
-    `Proveedor: ${PROVIDER_NAMES[provider] ?? provider ?? "—"} · Modo: ${modeLabel} · ${now}`;
+    `Proveedor: ${provider ? getProvider(provider).label : "—"} · Modo: ${modeLabel} · ${now}`;
 }
 
 // ---------------------------------------------------------------------------

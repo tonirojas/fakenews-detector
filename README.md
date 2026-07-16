@@ -85,28 +85,73 @@ Open the extension options (click the toolbar icon → **Configuración**, or ri
 | Setting | Description |
 |---|---|
 | Tema | Auto (system), Claro (light), or Oscuro (dark) |
-| Provider | Anthropic (Claude), OpenAI (GPT), or Google Gemini |
-| API Key | Your provider's API key — stored locally only |
-| Model | Speed-ranked dropdown with custom override |
-| OpenAI STT Key | Optional Whisper key when using Anthropic as main provider |
-| Check interval | Minimum seconds between API calls (default: 12 s) |
+| Proveedor de IA | Any supported provider or a custom OpenAI-compatible endpoint |
+| URL base | Optional override — leave empty to use the official URL |
+| Clave de API | Your provider's API key — stored locally only |
+| Modelo | Speed-ranked dropdown or free-text for open catalogs |
+| Clave STT | Optional Whisper key for audio transcription |
+| URL base STT | Optional Whisper endpoint (default: OpenAI) |
+| Modelo STT | Optional transcription model (default: `whisper-1`) |
+| Intervalo de análisis | Minimum seconds between API calls (default: 12 s) |
 
-### Provider defaults
+---
 
-| Provider | Default model | Tier |
+## Supported providers
+
+### Built-in presets
+
+| Group | Provider | Protocol | Default model | Get a key |
+|---|---|---|---|---|
+| Principales | **Anthropic (Claude)** | anthropic | claude-haiku-4-5-20251001 | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| Principales | **OpenAI (ChatGPT)** | openai | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Principales | **Google Gemini** | gemini | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| China | **DeepSeek** | openai-compat | deepseek-chat | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| China | **Qwen / Alibaba** | openai-compat | qwen-turbo | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/) |
+| China | **Kimi / Moonshot** | openai-compat | kimi-k2-turbo-preview | [platform.moonshot.ai](https://platform.moonshot.ai/console/api-keys) |
+| China | **GLM / Zhipu** | openai-compat | glm-4.5-air | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
+| Otros / Local | **Grok / xAI** | openai-compat | grok-4-fast | [console.x.ai](https://console.x.ai/) |
+| Otros / Local | **Mistral AI** | openai-compat | mistral-small-latest | [console.mistral.ai](https://console.mistral.ai/api-keys/) |
+| Otros / Local | **Groq (Llama)** | openai-compat | llama-3.3-70b-versatile | [console.groq.com](https://console.groq.com/keys) |
+| Otros / Local | **OpenRouter** | openai-compat | free text | [openrouter.ai](https://openrouter.ai/settings/keys) |
+| Otros / Local | **Ollama (local)** | openai-compat | free text | no key needed |
+| Otros / Local | **Personalizado** | openai-compat | free text | depends on provider |
+
+### Use any AI — the OpenAI-compatible standard
+
+The **OpenAI chat completions API** (`POST /chat/completions`) has become the de-facto interoperability standard for LLMs. Any provider that implements it works with this extension — select **Personalizado** and enter the base URL.
+
+The extension sends `response_format: {type:"json_object"}` on the first request and automatically retries without it if the provider rejects it, so you get clean JSON parsing across the widest range of backends.
+
+### Custom base URL — mainland China endpoints
+
+Providers with China-international and China-mainland endpoints differ:
+
+| Provider | International | Mainland China (override in URL base field) |
 |---|---|---|
-| Anthropic | `claude-haiku-4-5-20251001` | Fast |
-| OpenAI | `gpt-4o-mini` | Fast |
-| Google Gemini | `gemini-2.0-flash` | Fast |
+| Qwen | dashscope-intl.aliyuncs.com | dashscope.aliyuncs.com |
+| Kimi | api.moonshot.ai | api.moonshot.cn |
+| GLM | api.z.ai | open.bigmodel.cn |
 
-### Audio transcription requirements
+Set the **URL base** field to the mainland endpoint to switch without changing your API key.
+
+### Ollama — local, fully private
+
+With Ollama, page content goes only to your local Ollama server (`http://localhost:11434`) — nothing leaves your machine. No API key is required. Install a model with `ollama pull llama3.2`, enter `llama3.2` in the model field, and set the base URL to `http://localhost:11434/v1`.
+
+### OpenRouter — one key, many models
+
+OpenRouter provides access to hundreds of models through a single OpenAI-compatible endpoint. Enter any model identifier available on [openrouter.ai/models](https://openrouter.ai/models) in the model field (e.g. `deepseek/deepseek-chat`, `google/gemini-flash-1.5`).
+
+---
+
+## Audio transcription (STT)
 
 | Main provider | STT used | Requirement |
 |---|---|---|
-| OpenAI | Whisper (same key) | None — main key covers it |
-| Anthropic | Whisper | Requires separate OpenAI STT key |
-| Anthropic (no STT key) | — | Audio analysis unavailable |
-| Gemini | Gemini multimodal | None — main key covers it |
+| **OpenAI** | Whisper (same key) | None — main key covers it |
+| **Gemini** | Gemini multimodal | None — main key covers it |
+| Any other provider | OpenAI-compatible Whisper | Set a key in **Clave STT** |
+| Whisper via Groq (fast) | Groq Whisper | Set Groq key + URL `https://api.groq.com/openai/v1`, model `whisper-large-v3-turbo` |
 
 > **Firefox:** Audio capture requires `tabCapture` and `offscreen` APIs which are unavailable in Firefox. The audio button is disabled automatically and a hint is shown.
 
@@ -142,7 +187,7 @@ When active, the background service worker listens for tab switches and page loa
 
 | Guard | Detail |
 |---|---|
-| API key required | No call is made if no key is configured |
+| API key required | No call is made if no key is configured (skipped for Ollama) |
 | HTTP/HTTPS only | `chrome://`, `file://`, `about:`, `data:`, and web-store URLs are skipped entirely |
 | 10-minute URL dedupe | The same URL is not re-analyzed until 10 minutes have elapsed |
 | Single in-flight | If a request is already pending, the trigger is dropped |
@@ -158,7 +203,7 @@ When active, the background service worker listens for tab switches and page loa
 | Balanced | Equilibrado | Better reasoning at moderate cost. |
 | Quality | Maxima calidad (mas lento y caro) | Maximum accuracy. Slower and significantly more expensive. |
 
-Select **Otro (personalizado)…** to type an exact model ID not in the list.
+For providers with no built-in catalog (OpenRouter, Ollama, custom), type the model ID directly in the model field.
 
 ---
 
@@ -172,8 +217,9 @@ Select **Otro (personalizado)…** to type an exact model ID not in the list.
                                                       |  factCheck()
                                            +----------v----------+
                                            |   lib/providers.js  |
-                                           |  Anthropic / OpenAI |
-                                           |  / Gemini API calls |
+                                           |  Protocol adapters: |
+                                           |  anthropic / openai |
+                                           |  (compat) / gemini  |
                                            +---------------------+
 
 +-------------+  EXTRACT_TEXT / PAGE_TEXT   +------------------+
@@ -195,7 +241,7 @@ Select **Otro (personalizado)…** to type an exact model ID not in the list.
 
 - **Knowledge cutoff:** The LLM cannot verify events after its training cutoff. Such claims are labeled "Sin datos suficientes para verificar".
 - **Source accuracy:** Source links are generated by the LLM and may be imprecise or hallucinated.
-- **Audio transcription:** Requires Whisper (OpenAI) or Gemini. Anthropic alone does not support audio. Unavailable on Firefox.
+- **Audio transcription:** Requires Whisper (any compatible endpoint) or Gemini. Unavailable on Firefox.
 - **Service worker lifecycle:** Chrome may suspend the background service worker between interactions. State is mirrored to `chrome.storage.session` to survive restarts.
 
 ---
@@ -203,6 +249,7 @@ Select **Otro (personalizado)…** to type an exact model ID not in the list.
 ## Privacy
 
 - Page text and tab audio are sent directly to your chosen LLM provider's API.
+- With **Ollama**, page content goes only to your local Ollama server — nothing leaves your machine.
 - API keys are stored in `chrome.storage.local` on this device only.
 - No data passes through any server operated by this extension.
 - Keys are never logged to the console.

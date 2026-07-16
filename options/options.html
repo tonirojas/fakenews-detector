@@ -37,21 +37,34 @@
 
     <div class="divider"></div>
 
-    <!-- Provider -->
+    <!-- Provider — built from PROVIDERS registry by options.js -->
     <div class="form-group">
       <label for="select-provider">Proveedor de IA</label>
       <select id="select-provider">
-        <option value="anthropic">Anthropic (Claude)</option>
-        <option value="openai">OpenAI (GPT)</option>
-        <option value="gemini">Google Gemini</option>
+        <!-- options injected by JS -->
       </select>
     </div>
 
+    <!-- Base URL — editable override; required when provider is "custom" -->
+    <div class="form-group" id="baseurl-group">
+      <label for="input-baseurl">URL base</label>
+      <input type="url" id="input-baseurl" autocomplete="off" placeholder="" />
+      <p class="hint">
+        Déjalo vacío para usar la URL oficial. Útil para proxies o endpoints de China continental.
+        <strong>Anthropic:</strong> introduce la URL sin <code>/v1</code> (la extensión lo añade automáticamente).
+        <strong>Compatible OpenAI:</strong> incluye <code>/v1</code> en la URL base.
+      </p>
+      <p class="field-error" id="baseurl-error" style="display:none;"></p>
+    </div>
+
     <!-- API Key -->
-    <div class="form-group">
+    <div class="form-group" id="apikey-group">
       <label for="input-apikey">Clave de API</label>
-      <input type="password" id="input-apikey" autocomplete="off" placeholder="sk-ant-…  /  sk-…  /  AIza…" />
-      <p class="hint">La clave se guarda localmente y nunca se envía a servidores de esta extensión.</p>
+      <input type="password" id="input-apikey" autocomplete="off"
+             placeholder="sk-ant-…  /  sk-…  /  AIza…" />
+      <p class="hint" id="apikey-hint">
+        La clave se guarda localmente y nunca se envía a servidores de esta extensión.
+      </p>
     </div>
 
     <!-- Model -->
@@ -67,15 +80,38 @@
 
     <div class="divider"></div>
 
-    <!-- OpenAI STT key (shown when provider ≠ openai) -->
-    <div class="form-group" id="stt-group">
-      <label for="input-stt-key">Clave de OpenAI para transcripción de audio (Whisper)</label>
-      <input type="password" id="input-stt-key" autocomplete="off" placeholder="sk-… (opcional)" />
-      <p class="hint">
-        La transcripción de audio usa Whisper (OpenAI) cuando el proveedor principal es Anthropic,
-        o usa el propio proveedor si es Gemini u OpenAI.
-        Deja vacío si usas Gemini como proveedor principal.
-      </p>
+    <!-- STT section (hidden when provider = openai, openai key covers it) -->
+    <div id="stt-group">
+
+      <div class="form-group">
+        <label for="input-stt-key">Clave para transcripción de audio (STT)</label>
+        <input type="password" id="input-stt-key" autocomplete="off" placeholder="sk-… (opcional)" />
+        <p class="hint">
+          Clave para un endpoint Whisper compatible con OpenAI (OpenAI, Groq, etc.).
+          Deja vacío si usas Gemini como proveedor principal (no necesita clave STT separada).
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label for="input-stt-baseurl">URL base STT</label>
+        <input type="url" id="input-stt-baseurl" autocomplete="off"
+               placeholder="https://api.openai.com/v1" />
+        <p class="hint">
+          Endpoint de transcripción compatible con Whisper. Deja vacío para usar OpenAI.
+          Alternativa rápida: Groq (<code>https://api.groq.com/openai/v1</code>).
+        </p>
+        <p class="field-error" id="stt-baseurl-error" style="display:none;"></p>
+      </div>
+
+      <div class="form-group">
+        <label for="input-stt-model">Modelo STT</label>
+        <input type="text" id="input-stt-model" autocomplete="off" placeholder="whisper-1" />
+        <p class="hint">
+          ID del modelo de transcripción. Deja vacío para usar <code>whisper-1</code>.
+          En Groq puedes usar <code>whisper-large-v3-turbo</code>.
+        </p>
+      </div>
+
     </div>
 
     <!-- Interval -->

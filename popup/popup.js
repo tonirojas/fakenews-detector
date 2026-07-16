@@ -5,18 +5,10 @@
 
 import { api, supportsAudioCapture, openResultsPanel } from "../lib/webext.js";
 import { initTheme, applyTheme } from "../lib/theme.js";
+import { getProvider } from "../lib/models.js";
 
 // Apply theme as early as possible to minimise flash of wrong theme
 initTheme(document);
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const PROVIDER_NAMES = {
-  anthropic: "Anthropic (Claude)",
-  openai: "OpenAI (GPT)",
-  gemini: "Google Gemini",
-};
 
 // Spanish message for unsupported audio capture (must match background.js)
 const AUDIO_CAPTURE_UNSUPPORTED =
@@ -37,9 +29,10 @@ const btnTheme       = document.getElementById("btn-theme");
 const linkOptions    = document.getElementById("link-options");
 const toggleAutoMode = document.getElementById("toggle-auto-mode");
 
-let activeTabId = null;
-let currentMode = null;
-let hasKey = false; // set in init(); used by toggle handler
+let activeTabId      = null;
+let currentMode      = null;
+let hasKey           = false;            // set in init(); used by toggle handler
+let currentProvider  = "anthropic";     // set in init(); used by toggle handler
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,13 +125,16 @@ async function init() {
     "provider", "apiKey", "model", "autoMode",
   ]);
   const provider  = settings.provider ?? "anthropic";
+  currentProvider = provider;
   hasKey          = !!settings.apiKey;
 
   toggleAutoMode.checked = !!settings.autoMode;
 
-  providerLine.textContent = `Proveedor: ${PROVIDER_NAMES[provider] ?? provider}`;
+  providerLine.textContent = `Proveedor: ${getProvider(provider).label}`;
 
-  if (!hasKey) {
+  // Show no-key notice only when the provider actually requires a key
+  const provInfo = getProvider(provider);
+  if (provInfo.requiresKey !== false && !hasKey) {
     noKeyNotice.style.display = "";
     setButtonsDisabled(true);
     // Re-disable audio if it was enabled by supportsAudioCapture
@@ -196,7 +192,9 @@ toggleAutoMode.addEventListener("change", async () => {
 
   // Toggling ON: immediately start analysis of the current tab (if idle)
   if (enabled && activeTabId && currentMode === null) {
-    if (!hasKey) return; // no API key configured — skip
+    // Skip only when the active provider actually requires a key and none is configured
+    const provInfoToggle = getProvider(currentProvider);
+    if (provInfoToggle.requiresKey !== false && !hasKey) return;
     const [tab] = await api.tabs.query({ active: true, currentWindow: true });
     if (!tab?.url?.startsWith("http")) return; // non-http URL — skip
     api.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId }).catch(() => {});

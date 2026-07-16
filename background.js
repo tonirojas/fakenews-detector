@@ -18,7 +18,7 @@
 
 import { factCheck, transcribe, NoSttError } from "./lib/providers.js";
 import { ERRORS } from "./lib/strings.js";
-import { defaultModelFor } from "./lib/models.js";
+import { defaultModelFor, getProvider } from "./lib/models.js";
 import { api, supportsAudioCapture } from "./lib/webext.js";
 
 // ---------------------------------------------------------------------------
@@ -129,13 +129,21 @@ async function loadSettings() {
     provider: "anthropic",
     apiKey: "",
     model: defaultModelFor("anthropic"),
-    openaiSttKey: "",
+    baseUrl: "",
+    sttKey: "",
+    sttBaseUrl: "",
+    sttModel: "",
     checkIntervalSec: 12,
     language: "es",
     autoMode: false,
     theme: "auto",
   };
-  const stored = await api.storage.local.get(Object.keys(defaults));
+  // Read current keys + legacy openaiSttKey for one-time migration
+  const stored = await api.storage.local.get([...Object.keys(defaults), "openaiSttKey"]);
+  // Migrate openaiSttKey → sttKey (does not write back; write happens on next Save)
+  if (!stored.sttKey && stored.openaiSttKey) {
+    stored.sttKey = stored.openaiSttKey;
+  }
   return { ...defaults, ...stored };
 }
 
@@ -226,7 +234,8 @@ async function startTextAnalysis(tabId) {
 
 async function handlePageText(tabId, text) {
   const settings = await loadSettings();
-  if (!settings.apiKey) {
+  const provInfo = getProvider(settings.provider);
+  if (provInfo.requiresKey !== false && !settings.apiKey) {
     broadcastError(tabId, ERRORS.NO_API_KEY);
     return;
   }
@@ -266,12 +275,8 @@ async function handlePageText(tabId, text) {
   }
 
   try {
-    const result = await factCheck({
-      provider: settings.provider,
-      apiKey: settings.apiKey,
-      model: settings.model || defaultModelFor(settings.provider),
-      text,
-    });
+    const model = settings.model || defaultModelFor(settings.provider);
+    const result = await factCheck({ ...settings, model }, text);
 
     state.results.push(result);
     broadcastVerdictUpdate(tabId, result, "ok");
@@ -329,8 +334,8 @@ async function startAudioAnalysis(tabId) {
 
 async function handleAudioChunk(tabId, base64, mimeType) {
   const settings = await loadSettings();
-
-  if (!settings.apiKey) {
+  const provInfo = getProvider(settings.provider);
+  if (provInfo.requiresKey !== false && !settings.apiKey) {
     broadcastError(tabId, ERRORS.NO_API_KEY);
     return;
   }
@@ -378,13 +383,8 @@ async function handleAudioChunk(tabId, base64, mimeType) {
   state.transcriptHistory = `${state.transcriptHistory} ${segment}`.trim().slice(-4000);
 
   try {
-    const result = await factCheck({
-      provider: settings.provider,
-      apiKey: settings.apiKey,
-      model: settings.model || defaultModelFor(settings.provider),
-      text: segment,
-      context: context || undefined,
-    });
+    const model = settings.model || defaultModelFor(settings.provider);
+    const result = await factCheck({ ...settings, model }, segment, context || undefined);
 
     state.results.push(result);
     broadcastVerdictUpdate(tabId, result, "ok");
@@ -461,8 +461,9 @@ async function maybeAutoAnalyze(tabId) {
   const settings = await loadSettings();
   if (!settings.autoMode) return;
 
-  // Guard 2 — apiKey configured
-  if (!settings.apiKey) return;
+  // Guard 2 — apiKey configured (skip for providers that do not require a key, e.g. Ollama)
+  const provInfo = getProvider(settings.provider);
+  if (provInfo.requiresKey !== false && !settings.apiKey) return;
 
   // Guard 3 — tab still exists and is active
   let tab;
@@ -611,7 +612,10 @@ api.runtime.onInstalled.addListener(async ({ reason }) => {
         provider: "anthropic",
         apiKey: "",
         model: defaultModelFor("anthropic"),
-        openaiSttKey: "",
+        baseUrl: "",
+        sttKey: "",
+        sttBaseUrl: "",
+        sttModel: "",
         checkIntervalSec: 12,
         language: "es",
         autoMode: false,
