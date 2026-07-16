@@ -258,4 +258,4 @@ For providers with no built-in catalog (OpenRouter, Ollama, custom), type the mo
 
 ## Icons
 
-Icons are generated from `FakeNewsDetectorIcon.jpg` (source asset) into the `icons/` folder at 16, 32, 48, and 128 px.
+Icons are generated from `FakeNewsDetectorIcon.png` (source asset, transparent background) into the `icons/` folder at 16, 32, 48, and 128 px.
