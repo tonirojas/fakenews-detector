@@ -207,8 +207,8 @@ function applyProviderUI(providerId) {
     inputApiKey.placeholder = "sk-ant-…  /  sk-…  /  AIza…";
   }
 
-  // STT group: hide only when provider is "openai" (main key covers Whisper)
-  sttGroup.style.display = providerId === "openai" ? "none" : "";
+  // STT group: always visible — OpenAI provider users may also configure a custom STT endpoint.
+  sttGroup.style.display = "";
 }
 
 selectProvider.addEventListener("change", () => {

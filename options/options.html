@@ -80,24 +80,26 @@
 
     <div class="divider"></div>
 
-    <!-- STT section (hidden when provider = openai, openai key covers it) -->
+    <!-- STT section (always visible; openai provider users may configure a custom STT endpoint) -->
     <div id="stt-group">
 
       <div class="form-group">
-        <label for="input-stt-key">Clave para transcripción de audio (STT)</label>
+        <label for="input-stt-key">Clave para transcripción de audio (STT) — opcional</label>
         <input type="password" id="input-stt-key" autocomplete="off" placeholder="sk-… (opcional)" />
         <p class="hint">
           Clave para un endpoint Whisper compatible con OpenAI (OpenAI, Groq, etc.).
-          Deja vacío si usas Gemini como proveedor principal (no necesita clave STT separada).
+          Déjala vacía si tu servidor STT no requiere clave (Whisper autoalojado en tu VPS o Docker local).
+          Deja vacío también si usas Gemini como proveedor principal (no necesita clave STT separada).
         </p>
       </div>
 
       <div class="form-group">
         <label for="input-stt-baseurl">URL base STT</label>
         <input type="url" id="input-stt-baseurl" autocomplete="off"
-               placeholder="https://api.openai.com/v1" />
+               placeholder="https://tu-vps:8000/v1" />
         <p class="hint">
           Endpoint de transcripción compatible con Whisper. Deja vacío para usar OpenAI.
+          Debe ser <strong>https</strong> (o <strong>http</strong> solo para localhost/127.0.0.1/[::1]).
           Alternativa rápida: Groq (<code>https://api.groq.com/openai/v1</code>).
         </p>
         <p class="field-error" id="stt-baseurl-error" style="display:none;"></p>
@@ -108,7 +110,9 @@
         <input type="text" id="input-stt-model" autocomplete="off" placeholder="whisper-1" />
         <p class="hint">
           ID del modelo de transcripción. Deja vacío para usar <code>whisper-1</code>.
-          En Groq puedes usar <code>whisper-large-v3-turbo</code>.
+          En Groq: <code>whisper-large-v3-turbo</code>.
+          En servidores autoalojados el nombre debe coincidir con el que espera el servidor
+          (p.&nbsp;ej. <code>Systran/faster-whisper-small</code>).
         </p>
       </div>
 

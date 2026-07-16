@@ -157,6 +157,48 @@ OpenRouter provides access to hundreds of models through a single OpenAI-compati
 
 ---
 
+## Audio transcription without a token (self-hosted Whisper)
+
+A hosted, free, no-token STT service with Whisper-grade latency and reliability effectively does not exist. The token-free path is self-hosting. Groq offers a fast, free-tier Whisper API but still requires a (free) API key.
+
+Self-hosting recipe: run any OpenAI-compatible Whisper server, then point the **STT base URL** field at it and leave the **STT key** field empty.
+
+### Local Docker — CPU (speaches)
+
+```bash
+docker run \
+  --publish 8000:8000 \
+  --volume hf-hub-cache:/home/ubuntu/.cache/huggingface/hub \
+  --env WHISPER__MODEL=Systran/faster-whisper-small \
+  --detach \
+  ghcr.io/speaches-ai/speaches:latest-cpu
+```
+
+| Field | Value |
+|---|---|
+| STT base URL | `http://localhost:8000/v1` |
+| STT model | `Systran/faster-whisper-small` |
+| STT key | *(leave empty)* |
+
+For NVIDIA GPU acceleration, swap the tag to `ghcr.io/speaches-ai/speaches:latest-cuda`.
+
+Alternative image: **`hwdsl2/whisper-server`** also exposes an OpenAI-compatible `/v1/audio/transcriptions` endpoint and works the same way.
+
+### Remote VPS
+
+Same setup, but the endpoint **must be https** — for example, behind an nginx or Caddy reverse-proxy with a TLS certificate. The extension rejects non-https, non-localhost STT URLs to prevent captured audio from being sent over cleartext.
+
+> **IPv6 note:** `http` is allowed only for the literal hostnames `localhost`, `127.0.0.1`, and `[::1]`. If your Docker instance binds to the IPv6 loopback address, use `http://[::1]:8000/v1`.
+
+### Performance notes
+
+- faster-whisper (CTranslate2) is up to ~4× faster than the reference Whisper implementation.
+- On CPU: use `int8` quantization and the `small` or `medium` model. A 6 s audio chunk processed in near-real time may lag on weak hardware; GPU is recommended for smooth real-time transcription.
+
+> **Security:** with a self-hosted STT server, the captured audio goes only to the server you control — not to any third-party API.
+
+---
+
 ## Theming
 
 The extension supports three theme modes selectable in **Configuración**:
