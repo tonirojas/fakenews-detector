@@ -36,9 +36,13 @@
 
     <!-- Model -->
     <div class="form-group">
-      <label for="input-model">Modelo (editable)</label>
-      <input type="text" id="input-model" placeholder="claude-sonnet-4-5" />
-      <p class="hint" id="model-hint">Predeterminado para Anthropic: <strong>claude-sonnet-4-5</strong></p>
+      <label for="select-model">Modelo</label>
+      <select id="select-model"></select>
+      <div id="custom-model-group" style="display:none; margin-top:8px;">
+        <input type="text" id="input-model-custom" autocomplete="off"
+               placeholder="ID del modelo personalizado" />
+      </div>
+      <p class="hint" id="model-hint">Selecciona la velocidad y coste preferidos.</p>
     </div>
 
     <div class="divider"></div>
@@ -67,6 +71,6 @@
     <span class="confirm-msg" id="confirm-msg">✓ Guardado</span>
   </div>
 
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

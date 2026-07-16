@@ -10,17 +10,19 @@ const PROVIDER_NAMES = {
 };
 
 // UI references
-const providerLine = document.getElementById("provider-line");
-const statusBox    = document.getElementById("status-box");
-const noKeyNotice  = document.getElementById("no-key-notice");
-const btnText      = document.getElementById("btn-text");
-const btnAudio     = document.getElementById("btn-audio");
-const btnStop      = document.getElementById("btn-stop");
-const btnPanel     = document.getElementById("btn-panel");
-const linkOptions  = document.getElementById("link-options");
+const providerLine   = document.getElementById("provider-line");
+const statusBox      = document.getElementById("status-box");
+const noKeyNotice    = document.getElementById("no-key-notice");
+const btnText        = document.getElementById("btn-text");
+const btnAudio       = document.getElementById("btn-audio");
+const btnStop        = document.getElementById("btn-stop");
+const btnPanel       = document.getElementById("btn-panel");
+const linkOptions    = document.getElementById("link-options");
+const toggleAutoMode = document.getElementById("toggle-auto-mode");
 
 let activeTabId = null;
 let currentMode = null;
+let hasKey = false; // set in init(); used by toggle handler
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,9 +62,11 @@ async function init() {
   activeTabId = tab.id;
 
   // Load settings
-  const settings = await chrome.storage.local.get(["provider", "apiKey", "model"]);
+  const settings = await chrome.storage.local.get(["provider", "apiKey", "model", "autoMode"]);
   const provider  = settings.provider ?? "anthropic";
-  const hasKey    = !!settings.apiKey;
+  hasKey          = !!settings.apiKey;
+
+  toggleAutoMode.checked = !!settings.autoMode;
 
   providerLine.textContent = `Proveedor: ${PROVIDER_NAMES[provider] ?? provider}`;
 
@@ -105,6 +109,27 @@ btnStop.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "STOP_ANALYSIS", tabId: activeTabId });
   currentMode = null;
   showStopped();
+});
+
+// Auto-mode toggle
+toggleAutoMode.addEventListener("change", async () => {
+  const enabled = toggleAutoMode.checked;
+  try {
+    await chrome.storage.local.set({ autoMode: enabled });
+  } catch {
+    if (chrome.runtime.lastError) { /* storage unavailable — ignore */ }
+  }
+
+  // Toggling ON: immediately start analysis of the current tab (if idle)
+  if (enabled && activeTabId && currentMode === null) {
+    if (!hasKey) return; // no API key configured — skip
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url?.startsWith("http")) return; // non-http URL — skip
+    chrome.runtime.sendMessage({ type: "START_TEXT_ANALYSIS", tabId: activeTabId });
+    currentMode = "text";
+    showAnalyzing("text");
+  }
+  // Toggling OFF: persist only — do not disturb any running analysis
 });
 
 // sidePanel.open MUST be called directly inside a click handler (user gesture required)

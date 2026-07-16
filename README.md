@@ -28,7 +28,7 @@ An AI-assisted claim-checking Chrome extension (Manifest V3).
 2. Open Chrome and navigate to `chrome://extensions`.
 3. Enable **Developer mode** (top-right toggle).
 4. Click **Load unpacked** and select the project folder (`FAKENEWS-DETECTOR-PROJECT`).
-5. The extension icon (Chrome default) appears in your toolbar.
+5. The extension icon appears in your toolbar.
 
 > No build step required. Vanilla ES modules only.
 
@@ -48,13 +48,13 @@ Open the extension options page (click the toolbar icon → **Configuración**) 
 
 ### Provider defaults
 
-| Provider | Default model |
-|---|---|
-| Anthropic | `claude-sonnet-4-5` |
-| OpenAI | `gpt-4o-mini` |
-| Google Gemini | `gemini-2.0-flash` |
+| Provider | Default model | Tier |
+|---|---|---|
+| Anthropic | `claude-haiku-4-5-20251001` | Fast |
+| OpenAI | `gpt-4o-mini` | Fast |
+| Google Gemini | `gemini-2.0-flash` | Fast |
 
-The model field is editable — change it to any valid model ID without touching the code.
+All three defaults are the fastest (lowest-latency) model for each provider, which is the best choice for automatic mode. Use the **Modelo** dropdown in options to switch to a balanced or quality-tier model. See [Choosing a model](#choosing-a-model) above for guidance.
 
 ### Audio transcription requirements
 
@@ -64,6 +64,50 @@ The model field is editable — change it to any valid model ID without touching
 | Anthropic | Whisper | Requires separate OpenAI STT key |
 | Anthropic (no STT key) | — | Audio analysis unavailable |
 | Gemini | Gemini multimodal | None — main key covers it |
+
+---
+
+## Automatic mode
+
+Enable **Protección automática** in the popup toolbar to have the extension fact-check every page you visit without clicking a button.
+
+### What it does
+
+When active, the background service worker listens for tab switches and page loads. It waits ~2.5 s after navigation settles (debounce), then runs the exact same text-analysis pipeline as the manual "Analizar texto" button: the content script extracts visible text, the background sends it to your chosen LLM provider, and the overlay plus side panel update with the verdict.
+
+### Why audio stays manual
+
+Chrome's `tabCapture` API requires an explicit, per-tab user gesture to obtain a media stream. There is no way for a background service worker to start audio capture autonomously — attempting to do so would either silently fail or be blocked by the browser. Audio analysis must always be started from the popup.
+
+### Cost guards
+
+Automatic mode applies a layered set of guards before every API call to avoid unexpected charges:
+
+| Guard | Detail |
+|---|---|
+| API key required | No call is made if no key is configured |
+| HTTP/HTTPS only | `chrome://`, `file://`, `about:`, `data:`, and web-store URLs are skipped entirely |
+| 10-minute URL dedupe | The same URL is not re-analyzed until 10 minutes have elapsed (even across tab switches) |
+| Single in-flight | If a fact-check request is already pending for that tab, the trigger is dropped |
+| Check interval | Respects the same minimum-seconds-between-calls setting as manual mode |
+
+Closing a tab removes its URL from the recency map, so reopening the same page always triggers a fresh analysis.
+
+---
+
+## Choosing a model
+
+The options page now shows a speed-ranked dropdown instead of a free-text field.
+
+| Tier | Label | When to use |
+|---|---|---|
+| Fast | ⚡ Rápido — recomendado para tiempo real | Default. Lowest latency and cost. Best for automatic mode and real-time use. |
+| Balanced | Equilibrado | Better reasoning at moderate cost. Suitable for manual analysis of long articles. |
+| Quality | Máxima calidad (más lento y caro) | Maximum accuracy. Slower and significantly more expensive — reserve for critical verification. |
+
+**Recommendation:** keep the fast model selected when using automatic mode; the added latency of quality models makes real-time analysis feel sluggish and increases cost proportionally.
+
+If you need a model that is not in the list (e.g. a preview or fine-tuned variant), select **Otro (personalizado)…** and type the exact model ID. The extension stores and uses that ID without modification, and the saved custom value is preserved if you later switch providers and back.
 
 ---
 
@@ -131,5 +175,4 @@ The model field is editable — change it to any valid model ID without touching
 
 ## Icons
 
-No icons are bundled. Chrome displays a default puzzle-piece icon in the toolbar.
-To add custom icons, place `icon16.png`, `icon48.png`, and `icon128.png` in an `icons/` folder and add the `icons` field to `manifest.json`.
+Icons are generated from `FakeNewsDetectorIcon.jpg` (source asset) into the `icons/` folder at 16, 32, 48, and 128 px.

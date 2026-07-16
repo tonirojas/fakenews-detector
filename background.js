@@ -17,7 +17,8 @@
  */
 
 import { factCheck, transcribe, NoSttError } from "./lib/providers.js";
-import { ERRORS, buildBannerText, PROVIDER_DEFAULTS } from "./lib/strings.js";
+import { ERRORS } from "./lib/strings.js";
+import { defaultModelFor } from "./lib/models.js";
 
 // ---------------------------------------------------------------------------
 // Per-tab session state
@@ -66,16 +67,71 @@ async function persistState(tabId) {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-mode state
+// ---------------------------------------------------------------------------
+
+/** @type {Map<number, ReturnType<typeof setTimeout>>} */
+const autoDebounceTimers = new Map(); // tabId → pending setTimeout id
+
+/** @type {Map<string, number>} */
+const autoRecentUrls = new Map(); // url → lastAnalyzedAt timestamp (ms)
+
+/** @type {Map<number, string>} */
+const tabLastUrl = new Map(); // tabId → last known url (for recency cleanup)
+
+const AUTO_RECENCY_MAX = 50;        // max entries in recency map
+const AUTO_RECENCY_MS  = 10 * 60 * 1000; // 10 minutes
+
+// Whether autoRecentUrls has been restored from chrome.storage.session this SW lifetime
+let autoRecentUrlsRestored = false;
+
+/**
+ * Persist the recency map to chrome.storage.session so it survives MV3 SW restarts
+ * within the same browser session.
+ */
+async function persistAutoRecentUrls() {
+  try {
+    await chrome.storage.session.set({
+      autoRecentUrls: [...autoRecentUrls.entries()],
+    });
+  } catch {
+    // session storage may not be available in older profiles — ignore
+  }
+}
+
+/**
+ * Lazily restore the recency map from chrome.storage.session on the first call
+ * after a SW restart. chrome.storage.session is cleared when the browser closes,
+ * which matches the desired 10-minute dedup semantics.
+ */
+async function restoreAutoRecentUrls() {
+  if (autoRecentUrlsRestored) return;
+  autoRecentUrlsRestored = true;
+  try {
+    const data = await chrome.storage.session.get(["autoRecentUrls"]);
+    const entries = data.autoRecentUrls;
+    if (Array.isArray(entries)) {
+      for (const [url, ts] of entries) {
+        autoRecentUrls.set(url, ts);
+      }
+    }
+  } catch {
+    // session storage may not be available — start with an empty map
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Settings helpers
 // ---------------------------------------------------------------------------
 async function loadSettings() {
   const defaults = {
     provider: "anthropic",
     apiKey: "",
-    model: PROVIDER_DEFAULTS.anthropic,
+    model: defaultModelFor("anthropic"),
     openaiSttKey: "",
     checkIntervalSec: 12,
     language: "es",
+    autoMode: false,
   };
   const stored = await chrome.storage.local.get(Object.keys(defaults));
   return { ...defaults, ...stored };
@@ -187,11 +243,30 @@ async function handlePageText(tabId, text) {
   state.lastTextHash = hash;
   state.lastCheckTs = now;
 
+  // Stamp URL in recency map now that the content script has delivered text.
+  // delete-before-set maintains true LRU insertion order so eviction always
+  // removes the genuinely oldest entry.
+  try {
+    const autoTab = await chrome.tabs.get(tabId);
+    const autoUrl = autoTab?.url ?? "";
+    if (autoUrl.startsWith("http://") || autoUrl.startsWith("https://")) {
+      autoRecentUrls.delete(autoUrl);
+      autoRecentUrls.set(autoUrl, now);
+      if (autoRecentUrls.size > AUTO_RECENCY_MAX) {
+        const oldest = autoRecentUrls.keys().next().value;
+        autoRecentUrls.delete(oldest);
+      }
+      persistAutoRecentUrls(); // fire-and-forget
+    }
+  } catch {
+    // tab may have been closed before page text arrived
+  }
+
   try {
     const result = await factCheck({
       provider: settings.provider,
       apiKey: settings.apiKey,
-      model: settings.model || PROVIDER_DEFAULTS[settings.provider],
+      model: settings.model || defaultModelFor(settings.provider),
       text,
     });
 
@@ -297,7 +372,7 @@ async function handleAudioChunk(tabId, base64, mimeType) {
     const result = await factCheck({
       provider: settings.provider,
       apiKey: settings.apiKey,
-      model: settings.model || PROVIDER_DEFAULTS[settings.provider],
+      model: settings.model || defaultModelFor(settings.provider),
       text: segment,
       context: context || undefined,
     });
@@ -330,6 +405,85 @@ async function stopAnalysis(tabId) {
   state.mode = null;
   broadcastToTab(tabId, { type: "REMOVE_OVERLAY" });
   persistState(tabId);
+}
+
+// ---------------------------------------------------------------------------
+// Auto-mode: schedule + execute
+// ---------------------------------------------------------------------------
+
+/**
+ * Debounces automatic analysis triggers for the given tab.
+ * Clears any pending timer for the tab and restarts a 2500 ms countdown.
+ *
+ * @param {number} tabId
+ */
+function scheduleAutoAnalyze(tabId) {
+  const prev = autoDebounceTimers.get(tabId);
+  if (prev != null) clearTimeout(prev);
+
+  const timer = setTimeout(() => {
+    autoDebounceTimers.delete(tabId);
+    maybeAutoAnalyze(tabId);
+  }, 2500);
+
+  autoDebounceTimers.set(tabId, timer);
+}
+
+/**
+ * Runs the full set of cost-control guards before starting text analysis.
+ * Order of guards (token-cost control):
+ *   1. autoMode enabled in settings
+ *   2. apiKey configured
+ *   3. Tab still exists and is active
+ *   4. URL is http:// or https:// (skip chrome://, file://, about:, data:, etc.)
+ *   5. Same URL not analyzed in the last 10 minutes (dedupe)
+ *   6. No in-flight request; checkIntervalSec not elapsed
+ *
+ * On pass: reuses the existing text-analysis path (startTextAnalysis).
+ * Never auto-starts audio capture.
+ *
+ * @param {number} tabId
+ */
+async function maybeAutoAnalyze(tabId) {
+  // Restore persisted recency map lazily on the first call after a SW restart
+  await restoreAutoRecentUrls();
+
+  // Guard 1 — autoMode enabled
+  const settings = await loadSettings();
+  if (!settings.autoMode) return;
+
+  // Guard 2 — apiKey configured
+  if (!settings.apiKey) return;
+
+  // Guard 3 — tab still exists and is active
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    return; // tab was closed before timer fired
+  }
+  if (!tab.active) return;
+
+  // Guard 4 — http(s) only
+  const url = tab.url ?? "";
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return;
+
+  // Guard 5 — recency dedupe
+  const now = Date.now();
+  const lastAnalyzed = autoRecentUrls.get(url);
+  if (lastAnalyzed != null && now - lastAnalyzed < AUTO_RECENCY_MS) return;
+
+  // Guard 6 — no active session, not in-flight, interval elapsed
+  const state = getState(tabId);
+  if (state.mode !== null) return; // never interrupt a user-started session
+  if (state.inFlight) return;
+  if (now - state.lastCheckTs < (settings.checkIntervalSec ?? 12) * 1000) return;
+
+  // Reuse the exact existing text-analysis path.
+  // autoRecentUrls is stamped inside handlePageText once the content script
+  // delivers text, so a failed injection does not block retries for the full
+  // 10-minute window.
+  await startTextAnalysis(tabId);
 }
 
 // ---------------------------------------------------------------------------
@@ -385,9 +539,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ---------------------------------------------------------------------------
+// Auto-mode tab listeners
+// CRITICAL MV3 RULE: registered synchronously at module top level so they
+// survive service-worker wake-ups. Settings are read INSIDE the handlers.
+// ---------------------------------------------------------------------------
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  scheduleAutoAnalyze(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Track the latest URL for recency-map cleanup on tab removal
+  if (changeInfo.url) {
+    tabLastUrl.set(tabId, changeInfo.url);
+  }
+  // Only schedule when the tab is active and the page finished loading or URL changed
+  if (!tab.active) return;
+  if (changeInfo.status === "complete" || changeInfo.url) {
+    scheduleAutoAnalyze(tabId);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Cleanup on tab close
 // ---------------------------------------------------------------------------
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  // Clean up auto-mode debounce timer
+  const timer = autoDebounceTimers.get(tabId);
+  if (timer != null) {
+    clearTimeout(timer);
+    autoDebounceTimers.delete(tabId);
+  }
+
+  // Remove the tab's URL from the recency map so reopening the same URL re-analyzes
+  const url = tabLastUrl.get(tabId);
+  if (url) {
+    autoRecentUrls.delete(url);
+    tabLastUrl.delete(tabId);
+    persistAutoRecentUrls(); // keep session storage in sync
+  }
+
   const state = tabStates.get(tabId);
   if (state?.mode === "audio") {
     // Stop the recorder and release resources — same path as STOP_ANALYSIS
@@ -411,10 +601,11 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
       await chrome.storage.local.set({
         provider: "anthropic",
         apiKey: "",
-        model: PROVIDER_DEFAULTS.anthropic,
+        model: defaultModelFor("anthropic"),
         openaiSttKey: "",
         checkIntervalSec: 12,
         language: "es",
+        autoMode: false,
       });
     }
   }
