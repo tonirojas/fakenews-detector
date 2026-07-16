@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "FakeNews Detector",
+  "version": "0.1.0",
+  "description": "AI-powered claim fact-checker for news articles, videos, and social media. Requires your own LLM API key.",
+
+  "permissions": [
+    "storage",
+    "tabCapture",
+    "offscreen",
+    "sidePanel",
+    "activeTab",
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "<all_urls>",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "FakeNews Detector"
+  },
+
+  "options_page": "options/options.html",
+
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js"],
+      "css": ["content/overlay.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

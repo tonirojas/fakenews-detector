@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FakeNews Detector — Panel</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+
+  <div class="panel-header">
+    <div class="panel-title">FakeNews Detector</div>
+    <div id="overall-chip" class="overall-chip none">Sin análisis</div>
+    <div class="confidence-line" id="overall-confidence"></div>
+    <div class="status-line" id="status-line">Esperando análisis…</div>
+  </div>
+
+  <div class="panel-toolbar">
+    <button class="btn-clear" id="btn-clear">Limpiar</button>
+  </div>
+
+  <div class="claims-list" id="claims-list">
+    <div class="empty-state">
+      Inicia un análisis desde el popup para ver los resultados aquí.
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

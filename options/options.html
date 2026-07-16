@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FakeNews Detector — Configuración</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Configuración</h1>
+    <p class="subtitle">FakeNews Detector</p>
+
+    <div class="warning-box">
+      <strong>Aviso de privacidad:</strong> Las claves de API se almacenan localmente en este dispositivo
+      (<code>chrome.storage.local</code>). El contenido de las páginas y el audio capturado se envían
+      directamente a la API del proveedor seleccionado. Ningún dato pasa por servidores propios de esta extensión.
+    </div>
+
+    <!-- Provider -->
+    <div class="form-group">
+      <label for="select-provider">Proveedor de IA</label>
+      <select id="select-provider">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (GPT)</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+    </div>
+
+    <!-- API Key -->
+    <div class="form-group">
+      <label for="input-apikey">Clave de API</label>
+      <input type="password" id="input-apikey" autocomplete="off" placeholder="sk-ant-…  /  sk-…  /  AIza…" />
+      <p class="hint">La clave se guarda localmente y nunca se envía a servidores de esta extensión.</p>
+    </div>
+
+    <!-- Model -->
+    <div class="form-group">
+      <label for="input-model">Modelo (editable)</label>
+      <input type="text" id="input-model" placeholder="claude-sonnet-4-5" />
+      <p class="hint" id="model-hint">Predeterminado para Anthropic: <strong>claude-sonnet-4-5</strong></p>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- OpenAI STT key (shown when provider ≠ openai) -->
+    <div class="form-group" id="stt-group">
+      <label for="input-stt-key">Clave de OpenAI para transcripción de audio (Whisper)</label>
+      <input type="password" id="input-stt-key" autocomplete="off" placeholder="sk-… (opcional)" />
+      <p class="hint">
+        La transcripción de audio usa Whisper (OpenAI) cuando el proveedor principal es Anthropic,
+        o usa el propio proveedor si es Gemini u OpenAI.
+        Deja vacío si usas Gemini como proveedor principal.
+      </p>
+    </div>
+
+    <!-- Interval -->
+    <div class="form-group">
+      <label for="input-interval">Intervalo de análisis (segundos)</label>
+      <input type="number" id="input-interval" min="5" max="300" step="1" value="12" />
+      <p class="hint">Tiempo mínimo entre llamadas a la API. Mínimo recomendado: 10 s para reducir costes.</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="btn-save" id="btn-save">Guardar configuración</button>
+    <span class="confirm-msg" id="confirm-msg">✓ Guardado</span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

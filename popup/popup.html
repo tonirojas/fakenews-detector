@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FakeNews Detector</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <h1>FakeNews Detector</h1>
+  <p class="provider-line" id="provider-line">Proveedor: —</p>
+
+  <div class="status-box" id="status-box">Listo</div>
+
+  <div id="no-key-notice" class="no-key-notice" style="display:none;">
+    No hay clave de API configurada. Ve a <strong>Configuración</strong> para añadirla.
+  </div>
+
+  <div class="btn-group">
+    <button class="btn-primary" id="btn-text">Analizar texto de la página</button>
+    <button class="btn-primary" id="btn-audio">Analizar audio/vídeo</button>
+    <button class="btn-danger" id="btn-stop" style="display:none;">Detener análisis</button>
+    <button class="btn-panel" id="btn-panel">Abrir panel de fuentes</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="footer-link">
+    <a href="#" id="link-options">Configuración</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
