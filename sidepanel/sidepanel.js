@@ -615,7 +615,18 @@ async function refreshState() {
       api.storage.local.get(["provider"]),
       api.runtime.sendMessage({ type: "GET_STATE", tabId: activeTabId }),
     ]);
-    if (!state?.results?.length) return;
+    if (!state?.results?.length) {
+      // Session is empty (cleared, new tab, or SW restart with no persisted data).
+      // Reset the UI so stale content from the previous session never lingers.
+      allClaims = [];
+      renderOverall(null);
+      renderClaims();
+      // Also drop any stale conclusion state so conclusionResultShown from a
+      // previous session cannot be re-shown by the Conclusión button.
+      resetConclusionView();
+      statusLine.textContent = "Esperando análisis…";
+      return;
+    }
     const last = state.results[state.results.length - 1];
     // Accumulate all results (same 60-item cap as handleVerdictUpdate)
     // so the local tally matches the full claim set that summarizeSession uses.
@@ -762,12 +773,24 @@ api.runtime.onMessage.addListener((message) => {
     conclusionExpected = false;
     conclusionPending  = false;
     if (btnConclusion) btnConclusion.disabled = false;
+
+    // Guard: reject empty or whitespace-only conclusion text. This happens when a
+    // reasoning model (e.g. MiniMax M2.x) returns only its <think> block and no
+    // actual conclusion paragraph (providers.js throws, but belt-and-suspenders here).
+    if (!message.text || !message.text.trim()) {
+      setConclusionError(
+        "El modelo no devolvió texto de conclusión. Prueba de nuevo o cambia a un modelo más rápido."
+      );
+      // conclusionResultShown stays false so the next Conclusión click tries again.
+      return;
+    }
+
     // Recompute local tally from the same claims the AI summarised so the stats
     // chips and the AI paragraph are always consistent.
     if (Array.isArray(message.claims) && message.claims.length > 0) {
       renderConclusionStats(computeVerdictStats(message.claims));
     }
-    setConclusionText(message.text ?? "");
+    setConclusionText(message.text);
     // Mark that a valid conclusion is now rendered in VIEW B so a subsequent
     // Conclusión click can re-show VIEW B without firing another AI call.
     conclusionResultShown = true;
@@ -793,7 +816,6 @@ btnClear.addEventListener("click", () => {
   allClaims = [];
   renderOverall(null);
   renderClaims();
-  statusLine.textContent = "Esperando análisis…";
 
   // Reset all views to empty state
   showView("results");
@@ -806,6 +828,8 @@ btnClear.addEventListener("click", () => {
   if (activeTabId != null) {
     api.runtime.sendMessage({ type: "CLEAR_SESSION", tabId: activeTabId }).catch(() => {});
   }
+
+  statusLine.textContent = "Sesión reiniciada.";
 });
 
 // ---------------------------------------------------------------------------

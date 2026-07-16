@@ -280,6 +280,10 @@ async function handlePageText(tabId, text) {
   state.lastTextHash = hash;
   state.lastCheckTs = now;
 
+  // Capture session generation before any await so we can detect if
+  // CLEAR_SESSION ran while the factCheck call was in flight.
+  const gen = state.sessionGeneration ?? 0;
+
   // Stamp URL in recency map now that the content script has delivered text.
   // delete-before-set maintains true LRU insertion order so eviction always
   // removes the genuinely oldest entry.
@@ -302,6 +306,10 @@ async function handlePageText(tabId, text) {
   try {
     const model = settings.model || defaultModelFor(settings.provider);
     const result = await factCheck({ ...settings, model }, text);
+
+    // Discard stale result if CLEAR_SESSION bumped the generation while in flight.
+    // inFlight is still reset in the finally block below.
+    if ((state.sessionGeneration ?? 0) !== gen) return;
 
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: "text", overall: result.overall, claims: result.claims });
@@ -359,17 +367,21 @@ async function startAudioAnalysis(tabId) {
 }
 
 async function handleAudioChunk(tabId, base64, mimeType) {
+  // Hoisted synchronous captures — taken BEFORE the first await so a
+  // CLEAR_SESSION arriving during loadSettings/transcribe (the STT call can
+  // take 1-5 s) is still detected by the generation guard after factCheck.
+  const state = getState(tabId);
+  if (state.mode !== "audio" && state.mode !== "mic") return;
+  // Capture mode before async operations — it remains stable until STOP_ANALYSIS
+  const chunkMode = state.mode;
+  const gen = state.sessionGeneration ?? 0;
+
   const settings = await loadSettings();
   const provInfo = getProvider(settings.provider);
   if (provInfo.requiresKey !== false && !settings.apiKey) {
     broadcastError(tabId, ERRORS.NO_API_KEY);
     return;
   }
-
-  const state = getState(tabId);
-  if (state.mode !== "audio" && state.mode !== "mic") return;
-  // Capture mode before async operations — it remains stable until STOP_ANALYSIS
-  const chunkMode = state.mode;
 
   // Transcribe chunk
   let transcript;
@@ -413,6 +425,10 @@ async function handleAudioChunk(tabId, base64, mimeType) {
   try {
     const model = settings.model || defaultModelFor(settings.provider);
     const result = await factCheck({ ...settings, model }, segment, context || undefined);
+
+    // Discard stale result if CLEAR_SESSION bumped the generation while in flight.
+    // inFlight is still reset in the finally block below.
+    if ((state.sessionGeneration ?? 0) !== gen) return;
 
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: chunkMode, overall: result.overall, claims: result.claims });
@@ -569,13 +585,24 @@ async function maybeAutoAnalyze(tabId) {
 // ---------------------------------------------------------------------------
 /**
  * Returns true when the message came from an extension page (popup, options,
- * sidepanel, offscreen document) — NOT from a content script injected into
- * a web page. Extension pages have sender.id === runtime.id and no sender.tab.
+ * sidepanel, offscreen document — including pages opened as regular browser
+ * tabs in the mobile-fallback side-panel path, where sender.tab IS set).
+ *
+ * Uses an own-origin URL check: extension pages always have a
+ * chrome-extension:// (or moz-extension://) URL that starts with
+ * api.runtime.getURL(""), while content scripts injected into web pages have
+ * a sender.url that is the analyzed http(s) page, not the extension origin.
+ * This correctly rejects content scripts regardless of whether sender.tab is
+ * set, and correctly accepts extension pages opened as tabs.
  *
  * @param {chrome.runtime.MessageSender} sender
  */
 function isExtensionPageSender(sender) {
-  return sender?.id === api.runtime.id && !sender?.tab;
+  return (
+    sender?.id === api.runtime.id &&
+    typeof sender?.url === "string" &&
+    sender.url.startsWith(api.runtime.getURL(""))
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -651,8 +678,11 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const ghTabId = tabId;
       (async () => {
         const ghState = tabStates.get(ghTabId);
-        if (ghState) {
-          sendResponse({ history: ghState.history ?? [] });
+        // Only use the fast path when in-memory history is non-empty; an empty
+        // in-memory history may mean the SW restarted and the real history is still
+        // in session storage — fall through to the storage lookup in that case.
+        if (ghState?.history?.length) {
+          sendResponse({ history: ghState.history });
           return;
         }
         // Session storage fallback (SW may have restarted)
@@ -680,18 +710,36 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "CLEAR_SESSION": {
       if (!isExtensionPageSender(sender)) return false;
-      const csState = getState(tabId);
-      csState.results          = [];
-      csState.history          = [];
-      csState.lastTextHash     = null;
-      csState.lastCheckTs      = 0;
-      // Reset the in-flight guard so the next GENERATE_CONCLUSION is not silently
-      // dropped by the per-tab guard at line 719 when the old AI call is still running.
-      csState.conclusionInFlight = false;
-      // Bump the session generation so any in-flight GENERATE_CONCLUSION IIFE can
-      // detect the clear and skip writing a stale conclusion entry into history.
-      csState.sessionGeneration  = (csState.sessionGeneration ?? 0) + 1;
-      persistState(tabId);
+      // Fire-and-forget async IIFE — return false keeps the message channel closed.
+      (async () => {
+        // a. Stop any running audio/mic capture and remove the page overlay first.
+        try { await stopAnalysis(tabId); } catch { /* capture already stopped or unavailable */ }
+
+        // b. Clear results/history/hashes/flags and bump the session generation so
+        //    any in-flight factCheck or GENERATE_CONCLUSION IIFE can detect the clear
+        //    and discard its stale result.
+        const csState = getState(tabId);
+        csState.results            = [];
+        csState.history            = [];
+        csState.lastTextHash       = null;
+        csState.lastCheckTs        = 0;
+        csState.conclusionInFlight = false;
+        csState.sessionGeneration  = (csState.sessionGeneration ?? 0) + 1;
+
+        // c. Remove the tab's current URL from autoRecentUrls so auto-mode can
+        //    immediately re-analyze after a Reiniciar (the 10-minute dedupe window
+        //    would otherwise block a new analysis on the same page).
+        try {
+          const t = await api.tabs.get(tabId);
+          if (t?.url) {
+            autoRecentUrls.delete(t.url);
+            persistAutoRecentUrls();
+          }
+        } catch { /* tab may have been closed */ }
+
+        // d. Persist the fresh empty state.
+        persistState(tabId);
+      })();
       return false; // fire-and-forget
     }
 
@@ -769,7 +817,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
           broadcastToRuntime({
             type: "CONCLUSION_ERROR",
             tabId: gcTabId,
-            message: `Error al generar la conclusión (${err.message?.slice(0, 80)})`,
+            message: `Error al generar la conclusión (${err.message?.slice(0, 200)})`,
           });
         } finally {
           gcState.conclusionInFlight = false;

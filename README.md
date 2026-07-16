@@ -211,7 +211,7 @@ The side panel content area is organized into three mutually exclusive views. Th
 
 ### Resultados (default)
 
-The live claim-card feed. New verdicts appear here as analyses complete. This view is the default and is restored automatically when you switch tabs or click **Limpiar**.
+The live claim-card feed. New verdicts appear here as analyses complete. This view is the default and is restored automatically when you switch tabs or click **Reiniciar**.
 
 ### Conclusión — session verdict summary
 
@@ -228,8 +228,9 @@ The **← Resultados** button returns to the claim feed without cancelling a pen
 - If there are no claims in the current session, a notice is shown and no AI call is made.
 - The AI conclusion requires an API key (skipped automatically for Ollama and other keyless providers).
 - The button is disabled while the AI call is in progress to prevent duplicate requests.
-- The conclusion view resets when you click **Limpiar** or switch to a different tab.
+- The conclusion view resets when you click **Reiniciar** or switch to a different tab.
 - The AI conclusion uses the configured provider and has a ~120 s timeout. Reasoning models (MiniMax M2.x, DeepSeek-R1) are slower to conclude — for near-instant conclusions prefer a fast model.
+- If a reasoning model returns only its `<think>` reasoning block with no conclusion text, the extension shows a clear Spanish error suggesting a faster model (e.g. DeepSeek-chat, GLM-4.5-Air, or Gemini Flash).
 
 ### Historial — per-session response log
 
@@ -245,8 +246,17 @@ Click any row to expand it and see the full detail — claim cards for analyses,
 
 **Notes:**
 - History is per-tab session and is capped at the 50 most recent entries.
-- Clicking **Limpiar** clears the history for the current tab along with the claim results.
+- Clicking **Reiniciar** clears the history for the current tab along with the claim results.
 - History resets when you switch to a different tab.
+
+### Reiniciar — session reset button
+
+The **Reiniciar** button in the toolbar (previously labeled "Limpiar") performs a full session reset for the active tab:
+
+- Stops any running audio or microphone capture and removes the page overlay.
+- Wipes all claim results and session history for that tab.
+- Clears the auto-mode URL dedupe entry so the same page can be re-analyzed immediately (without waiting for the 10-minute cooldown to expire).
+- Resets all three views to their empty state.
 
 ---
 
