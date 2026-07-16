@@ -43,6 +43,12 @@ const btnClear          = document.getElementById("btn-clear");
 const vuBarsEl          = document.getElementById("vu-bars");
 const vuLabelEl         = document.getElementById("vu-label");
 
+// Conclusion box refs (null-guarded throughout — mobile fallback may lack them)
+const btnConclusion   = document.getElementById("btn-conclusion");
+const conclusionBox   = document.getElementById("conclusion-box");
+const conclusionStats = document.getElementById("conclusion-stats");
+const conclusionAi    = document.getElementById("conclusion-ai");
+
 // ---------------------------------------------------------------------------
 // VU meter
 // Create 16 LED-style bar segments. Bars light up left→right proportional to
@@ -130,6 +136,99 @@ let activeTabId = null;
 let ownTabId    = null;
 /** Window that owns this sidepanel instance. Filters onActivated events from other windows. */
 let ownWindowId = null;
+
+/** True while a GENERATE_CONCLUSION API call is in flight. */
+let conclusionPending = false;
+
+// ---------------------------------------------------------------------------
+// Conclusion box helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Computes verdict counts and average confidence from a claims array.
+ * @param {Array} claims
+ * @returns {{ counts: Record<string,number>, avgConf: number, total: number }}
+ */
+function computeVerdictStats(claims) {
+  const counts = { true: 0, false: 0, uncertain: 0, unverifiable: 0 };
+  let totalConf = 0;
+  for (const c of claims) {
+    if (c.verdict in counts) counts[c.verdict]++;
+    totalConf += c.confidence ?? 0;
+  }
+  const avgConf = claims.length > 0 ? Math.round(totalConf / claims.length) : 0;
+  return { counts, avgConf, total: claims.length };
+}
+
+/**
+ * Renders the verdict tally pills into #conclusion-stats.
+ * @param {{ counts: Record<string,number>, avgConf: number, total: number }} stats
+ */
+function renderConclusionStats(stats) {
+  if (!conclusionStats) return;
+  conclusionStats.textContent = "";
+
+  const items = [
+    { key: "true",         label: "Verdadera",     colorClass: "green" },
+    { key: "uncertain",    label: "Dudosa",         colorClass: "amber" },
+    { key: "false",        label: "Falsa",          colorClass: "red"   },
+    { key: "unverifiable", label: "No verificable", colorClass: "gray"  },
+  ];
+
+  for (const { key, label, colorClass } of items) {
+    const chip = document.createElement("span");
+    chip.className = `conclusion-stat ${colorClass}`;
+    chip.textContent = `${label}: ${stats.counts[key]}`;
+    conclusionStats.appendChild(chip);
+  }
+
+  const confEl = document.createElement("span");
+  confEl.className = "conclusion-stat-conf";
+  confEl.textContent = `Confianza media: ${stats.avgConf}%`;
+  conclusionStats.appendChild(confEl);
+}
+
+/** Makes the conclusion box visible. */
+function showConclusionBox() {
+  if (!conclusionBox) return;
+  conclusionBox.hidden = false;
+}
+
+/** Hides and resets the conclusion box (stats + AI text cleared). */
+function hideConclusionBox() {
+  if (!conclusionBox) return;
+  conclusionBox.hidden = true;
+  if (conclusionStats) conclusionStats.textContent = "";
+  if (conclusionAi) {
+    conclusionAi.textContent = "";
+    conclusionAi.className = "conclusion-ai";
+  }
+}
+
+/** Shows the "Generando conclusión…" loading state in #conclusion-ai. */
+function setConclusionLoading(isLoading) {
+  if (!conclusionAi) return;
+  if (isLoading) {
+    conclusionAi.textContent = "Generando conclusión…";
+    conclusionAi.className = "conclusion-ai conclusion-loading";
+  } else {
+    conclusionAi.className = "conclusion-ai";
+  }
+}
+
+/** Renders the AI conclusion text (plain textContent — untrusted data). */
+function setConclusionText(text) {
+  if (!conclusionAi) return;
+  conclusionAi.textContent = text;
+  conclusionAi.className = "conclusion-ai";
+}
+
+/** Renders an error message inside the conclusion box. */
+function setConclusionError(message) {
+  if (!conclusionAi) return;
+  conclusionAi.textContent = message;
+  conclusionAi.className = "conclusion-ai conclusion-error";
+}
 
 // ---------------------------------------------------------------------------
 // Render helpers
@@ -272,7 +371,9 @@ async function refreshState() {
     ]);
     if (!state?.results?.length) return;
     const last = state.results[state.results.length - 1];
-    allClaims = last.claims ?? [];
+    // Fix #4: accumulate all results (same 60-item cap as handleVerdictUpdate)
+    // so the local tally matches the full claim set that summarizeSession uses.
+    allClaims = (state.results).flatMap((r) => r.claims ?? []).slice(0, 60);
     renderOverall(last.overall);
     renderClaims();
     updateStatusLine(state.mode, settings.provider);
@@ -299,6 +400,11 @@ function switchToTab(tabId) {
   // Reset VU meter to neutral state
   vuTargetLevel = 0;
   if (vuLabelEl) vuLabelEl.textContent = "Nivel de audio";
+
+  // Conclusion is per-tab-session — reset when switching tabs
+  hideConclusionBox();
+  conclusionPending = false;
+  if (btnConclusion) btnConclusion.disabled = false;
 
   refreshState();
 }
@@ -397,6 +503,25 @@ api.runtime.onMessage.addListener((message) => {
       vuLabelEl.textContent = "Nivel de audio" + suffix;
     }
   }
+
+  if (message.type === "CONCLUSION_RESULT" && message.tabId === activeTabId) {
+    conclusionPending = false;
+    if (btnConclusion) btnConclusion.disabled = false;
+    setConclusionLoading(false);
+    // Fix #2: recompute local tally from the same claims the AI summarised so
+    // the stats chips and the AI paragraph are always consistent.
+    if (Array.isArray(message.claims) && message.claims.length > 0) {
+      renderConclusionStats(computeVerdictStats(message.claims));
+    }
+    setConclusionText(message.text ?? "");
+  }
+
+  if (message.type === "CONCLUSION_ERROR" && message.tabId === activeTabId) {
+    conclusionPending = false;
+    if (btnConclusion) btnConclusion.disabled = false;
+    setConclusionLoading(false);
+    setConclusionError(message.message ?? "Error desconocido");
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -407,6 +532,37 @@ btnClear.addEventListener("click", () => {
   renderOverall(null);
   renderClaims();
   statusLine.textContent = "Esperando análisis…";
+  // Conclusion is tied to the session — clear it too
+  hideConclusionBox();
+  conclusionPending = false;
+  if (btnConclusion) btnConclusion.disabled = false;
+});
+
+// ---------------------------------------------------------------------------
+// Conclusion button
+// ---------------------------------------------------------------------------
+btnConclusion?.addEventListener("click", () => {
+  // Guard against double-clicks while an AI call is already in flight
+  if (conclusionPending) return;
+
+  if (allClaims.length === 0) {
+    showConclusionBox();
+    if (conclusionStats) conclusionStats.textContent = "";
+    setConclusionText("Aún no hay afirmaciones en esta sesión.");
+    return;
+  }
+
+  // Part 1: instant local stats (no API call)
+  const stats = computeVerdictStats(allClaims);
+  showConclusionBox();
+  renderConclusionStats(stats);
+
+  // Part 2: kick off the AI conclusion
+  setConclusionLoading(true);
+  conclusionPending = true;
+  if (btnConclusion) btnConclusion.disabled = true;
+
+  api.runtime.sendMessage({ type: "GENERATE_CONCLUSION", tabId: activeTabId }).catch(() => {});
 });
 
 init();

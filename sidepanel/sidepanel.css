@@ -154,6 +154,92 @@ body {
 
 .btn-clear:hover { background: var(--border); }
 
+.btn-conclusion {
+  background: var(--link);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.btn-conclusion:hover:not(:disabled) { opacity: 0.85; }
+.btn-conclusion:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Conclusion box ──────────────────────────────────────────── */
+/* Placed between the toolbar and the claims list as a flex item.
+   Uses theme CSS variables so it renders correctly in light and dark modes. */
+.conclusion-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--link);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 12px 0;
+  flex-shrink: 0;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.conclusion-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+/* Verdict tally chips row */
+.conclusion-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.conclusion-stat {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.conclusion-stat.green { background: #16a34a; }
+.conclusion-stat.amber { background: #d97706; }
+.conclusion-stat.red   { background: #dc2626; }
+.conclusion-stat.gray  { background: #6b7280; }
+
+.conclusion-stat-conf {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+/* AI-generated conclusion text */
+.conclusion-ai {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.conclusion-ai.conclusion-loading {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.conclusion-ai.conclusion-error {
+  color: var(--error-text);
+}
+
 /* ── Claims list ─────────────────────────────────────────────── */
 .claims-list {
   flex: 1;

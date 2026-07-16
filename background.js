@@ -17,7 +17,7 @@
  *   GET_STATE            {tabId}                     → responds with state
  */
 
-import { factCheck, transcribe, NoSttError } from "./lib/providers.js";
+import { factCheck, transcribe, summarizeSession, NoSttError } from "./lib/providers.js";
 import { ERRORS } from "./lib/strings.js";
 import { defaultModelFor, getProvider } from "./lib/models.js";
 import { api, supportsAudioCapture } from "./lib/webext.js";
@@ -47,6 +47,7 @@ function defaultState() {
     results: [],
     inFlight: false,
     lastTextHash: null,
+    conclusionInFlight: false,
   };
 }
 
@@ -616,6 +617,78 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // keep channel open for async
       }
       return false;
+    }
+
+    case "GENERATE_CONCLUSION": {
+      if (!isExtensionPageSender(sender)) return false;
+      // Capture tabId for the async closure (the outer `tabId` binding is stable)
+      const gcTabId = tabId;
+      (async () => {
+        const gcState = getState(gcTabId);
+
+        // Collect all claims across every analysis result for this tab.
+        // Fix #3: if in-memory state is empty (SW restarted), fall back to
+        // session storage — mirrors the same fallback used by GET_STATE.
+        let results = gcState?.results ?? [];
+        if (results.length === 0) {
+          try {
+            const stored = await api.storage.session.get([`tabState_${gcTabId}`]);
+            const persisted = stored[`tabState_${gcTabId}`];
+            if (persisted?.results?.length) {
+              results = persisted.results;
+              // Hydrate in-memory state so subsequent calls are fast
+              gcState.results = results;
+              gcState.mode = persisted.mode ?? gcState.mode;
+              gcState.lastCheckTs = persisted.lastCheckTs ?? gcState.lastCheckTs;
+            }
+          } catch {
+            // session storage unavailable — leave results empty
+          }
+        }
+
+        const claims = results.flatMap((r) => r.claims ?? []);
+        if (claims.length === 0) {
+          broadcastToRuntime({
+            type: "CONCLUSION_ERROR",
+            tabId: gcTabId,
+            message: "Aún no hay afirmaciones analizadas en esta sesión.",
+          });
+          return;
+        }
+
+        // Per-tab in-flight guard — prevents double-clicks from firing two calls
+        // Fix #1: guard is set before loadSettings() so a storage-API rejection
+        // inside the try block is caught and broadcast as CONCLUSION_ERROR instead
+        // of escaping the IIFE as an unhandled rejection.
+        if (gcState.conclusionInFlight) return;
+        gcState.conclusionInFlight = true;
+
+        try {
+          const settings = await loadSettings();
+          const provInfo = getProvider(settings.provider);
+          if (provInfo.requiresKey !== false && !settings.apiKey) {
+            broadcastToRuntime({
+              type: "CONCLUSION_ERROR",
+              tabId: gcTabId,
+              message: ERRORS.NO_API_KEY,
+            });
+            return;
+          }
+          const text = await summarizeSession(settings, claims);
+          // Fix #2: include the authoritative claims list so the sidepanel can
+          // recompute local stats from the same set the AI summarised.
+          broadcastToRuntime({ type: "CONCLUSION_RESULT", tabId: gcTabId, text, claims });
+        } catch (err) {
+          broadcastToRuntime({
+            type: "CONCLUSION_ERROR",
+            tabId: gcTabId,
+            message: `Error al generar la conclusión (${err.message?.slice(0, 80)})`,
+          });
+        } finally {
+          gcState.conclusionInFlight = false;
+        }
+      })();
+      return false; // fire-and-forget
     }
 
     default:
