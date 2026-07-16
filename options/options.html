@@ -5,13 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FakeNews Detector — Configuración</title>
   <link rel="stylesheet" href="options.css" />
-  <!-- Pre-paint theme: synchronous read from sessionStorage prevents FOUC on repeat opens -->
-  <script>
-    try {
-      var _t = sessionStorage.getItem("theme_resolved");
-      if (_t === "dark" || _t === "light") document.documentElement.setAttribute("data-theme", _t);
-    } catch {}
-  </script>
+  <!-- Pre-paint theme (external script — MV3 CSP blocks inline scripts) -->
+  <script src="../lib/theme-preload.js"></script>
 </head>
 <body>
   <div class="container">
