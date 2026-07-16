@@ -45,10 +45,31 @@ function defaultState() {
     transcriptHistory: "", // previously flushed (fact-checked) transcript segments
     lastCheckTs: 0,
     results: [],
+    history: [],           // chronological log of analysis + conclusion entries (capped at 50)
     inFlight: false,
     lastTextHash: null,
     conclusionInFlight: false,
+    // Monotonically-increasing counter bumped by CLEAR_SESSION. The GENERATE_CONCLUSION
+    // IIFE captures this at start and skips pushHistory if the value changed, preventing
+    // ghost conclusion entries from being written to history after a clear.
+    sessionGeneration: 0,
   };
+}
+
+/**
+ * Appends a history entry to a tab's session history, capped at 50 entries.
+ * Entry shape: { id, ts, kind, ...rest }
+ *   kind="analysis"   — { mode, overall, claims }
+ *   kind="conclusion" — { text, claims }
+ * @param {object} state  TabState
+ * @param {object} entry  Fields to merge (kind + payload; id and ts are generated here)
+ */
+function pushHistory(state, entry) {
+  if (!Array.isArray(state.history)) state.history = [];
+  const id = `${Date.now()}-${state.history.length}`;
+  state.history.push({ id, ts: Date.now(), ...entry });
+  // Cap to most recent 50 entries (shift oldest from the front)
+  while (state.history.length > 50) state.history.shift();
 }
 
 function getState(tabId) {
@@ -61,9 +82,11 @@ async function persistState(tabId) {
   const state = tabStates.get(tabId);
   if (!state) return;
   // Only persist serialisable subset (no functions)
-  const { mode, results, lastCheckTs } = state;
+  const { mode, results, lastCheckTs, history } = state;
   try {
-    await api.storage.session.set({ [`tabState_${tabId}`]: { mode, results, lastCheckTs } });
+    await api.storage.session.set({
+      [`tabState_${tabId}`]: { mode, results, lastCheckTs, history: history ?? [] },
+    });
   } catch {
     // session storage may not be available in older profiles — ignore
   }
@@ -281,6 +304,7 @@ async function handlePageText(tabId, text) {
     const result = await factCheck({ ...settings, model }, text);
 
     state.results.push(result);
+    pushHistory(state, { kind: "analysis", mode: "text", overall: result.overall, claims: result.claims });
     broadcastVerdictUpdate(tabId, result, "ok");
   } catch (err) {
     broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`);
@@ -344,6 +368,8 @@ async function handleAudioChunk(tabId, base64, mimeType) {
 
   const state = getState(tabId);
   if (state.mode !== "audio" && state.mode !== "mic") return;
+  // Capture mode before async operations — it remains stable until STOP_ANALYSIS
+  const chunkMode = state.mode;
 
   // Transcribe chunk
   let transcript;
@@ -389,6 +415,7 @@ async function handleAudioChunk(tabId, base64, mimeType) {
     const result = await factCheck({ ...settings, model }, segment, context || undefined);
 
     state.results.push(result);
+    pushHistory(state, { kind: "analysis", mode: chunkMode, overall: result.overall, claims: result.claims });
     broadcastVerdictUpdate(tabId, result, "ok");
   } catch (err) {
     broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`);
@@ -619,12 +646,64 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
+    case "GET_HISTORY": {
+      if (!isExtensionPageSender(sender)) return false;
+      const ghTabId = tabId;
+      (async () => {
+        const ghState = tabStates.get(ghTabId);
+        if (ghState) {
+          sendResponse({ history: ghState.history ?? [] });
+          return;
+        }
+        // Session storage fallback (SW may have restarted)
+        try {
+          const stored = await api.storage.session.get([`tabState_${ghTabId}`]);
+          const persisted = stored[`tabState_${ghTabId}`];
+          // Hydrate the in-memory entry so subsequent getState calls (e.g. from
+          // handlePageText / handleAudioChunk) find the restored state and append
+          // to the existing history rather than overwriting it with a fresh default.
+          // Mirrors the same hydration already done in GENERATE_CONCLUSION (lines 694-698).
+          if (persisted) {
+            const ghStateHydrated = getState(ghTabId);
+            if (persisted.results?.length)              ghStateHydrated.results     = persisted.results;
+            if (persisted.mode != null)                 ghStateHydrated.mode        = persisted.mode;
+            if (persisted.lastCheckTs != null)          ghStateHydrated.lastCheckTs = persisted.lastCheckTs;
+            if (Array.isArray(persisted.history))       ghStateHydrated.history     = persisted.history;
+          }
+          sendResponse({ history: Array.isArray(persisted?.history) ? persisted.history : [] });
+        } catch {
+          sendResponse({ history: [] });
+        }
+      })();
+      return true; // keep channel open for async response
+    }
+
+    case "CLEAR_SESSION": {
+      if (!isExtensionPageSender(sender)) return false;
+      const csState = getState(tabId);
+      csState.results          = [];
+      csState.history          = [];
+      csState.lastTextHash     = null;
+      csState.lastCheckTs      = 0;
+      // Reset the in-flight guard so the next GENERATE_CONCLUSION is not silently
+      // dropped by the per-tab guard at line 719 when the old AI call is still running.
+      csState.conclusionInFlight = false;
+      // Bump the session generation so any in-flight GENERATE_CONCLUSION IIFE can
+      // detect the clear and skip writing a stale conclusion entry into history.
+      csState.sessionGeneration  = (csState.sessionGeneration ?? 0) + 1;
+      persistState(tabId);
+      return false; // fire-and-forget
+    }
+
     case "GENERATE_CONCLUSION": {
       if (!isExtensionPageSender(sender)) return false;
       // Capture tabId for the async closure (the outer `tabId` binding is stable)
       const gcTabId = tabId;
       (async () => {
         const gcState = getState(gcTabId);
+        // Snapshot the session generation at IIFE entry so we can detect if
+        // CLEAR_SESSION runs while the AI call is in flight (finding 4).
+        const gcGeneration = gcState.sessionGeneration ?? 0;
 
         // Collect all claims across every analysis result for this tab.
         // Fix #3: if in-memory state is empty (SW restarted), fall back to
@@ -640,6 +719,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
               gcState.results = results;
               gcState.mode = persisted.mode ?? gcState.mode;
               gcState.lastCheckTs = persisted.lastCheckTs ?? gcState.lastCheckTs;
+              if (Array.isArray(persisted.history)) gcState.history = persisted.history;
             }
           } catch {
             // session storage unavailable — leave results empty
@@ -675,9 +755,16 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
           const text = await summarizeSession(settings, claims);
-          // Fix #2: include the authoritative claims list so the sidepanel can
+          // Include the authoritative claims list so the sidepanel can
           // recompute local stats from the same set the AI summarised.
           broadcastToRuntime({ type: "CONCLUSION_RESULT", tabId: gcTabId, text, claims });
+          // Guard against writing a stale conclusion into history when CLEAR_SESSION
+          // ran while the AI call was in flight (sessionGeneration is bumped on clear).
+          if ((gcState.sessionGeneration ?? 0) === gcGeneration) {
+            // Record this conclusion in the tab's session history.
+            pushHistory(gcState, { kind: "conclusion", text, claims });
+            persistState(gcTabId); // persist immediately so history survives SW restart
+          }
         } catch (err) {
           broadcastToRuntime({
             type: "CONCLUSION_ERROR",

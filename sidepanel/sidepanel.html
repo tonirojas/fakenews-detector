@@ -10,6 +10,7 @@
 </head>
 <body>
 
+  <!-- Header — always visible in all views -->
   <div class="panel-header">
     <div class="panel-title">FakeNews Detector</div>
     <div id="overall-chip" class="overall-chip none">Sin análisis</div>
@@ -21,20 +22,44 @@
     </div>
   </div>
 
+  <!-- Toolbar — always visible in all views -->
   <div class="panel-toolbar">
-    <button class="btn-clear" id="btn-clear">Limpiar</button>
-    <button class="btn-conclusion" id="btn-conclusion">Conclusión</button>
+    <button class="btn-toolbar btn-clear" id="btn-clear">Limpiar</button>
+    <div class="toolbar-nav-group">
+      <button class="btn-toolbar btn-history" id="btn-history">Historial</button>
+      <button class="btn-toolbar btn-conclusion" id="btn-conclusion">Conclusión</button>
+    </div>
   </div>
 
-  <div id="conclusion-box" class="conclusion-box" hidden>
-    <div class="conclusion-title">Conclusión de la sesión</div>
-    <div class="conclusion-stats" id="conclusion-stats"></div>
-    <div class="conclusion-ai" id="conclusion-ai"></div>
+  <!-- VIEW A: Resultados (default) -->
+  <div id="results-view" class="view-container">
+    <div class="claims-list" id="claims-list">
+      <div class="empty-state">
+        Inicia un análisis desde el popup para ver los resultados aquí.
+      </div>
+    </div>
   </div>
 
-  <div class="claims-list" id="claims-list">
-    <div class="empty-state">
-      Inicia un análisis desde el popup para ver los resultados aquí.
+  <!-- VIEW B: Conclusión -->
+  <div id="conclusion-view" class="view-container" hidden>
+    <div class="view-header">
+      <button class="btn-back" id="btn-back-from-conclusion">← Resultados</button>
+      <span class="view-title">Conclusión de la sesión</span>
+    </div>
+    <div class="view-body">
+      <div class="conclusion-stats" id="conclusion-stats"></div>
+      <div id="conclusion-body"></div>
+    </div>
+  </div>
+
+  <!-- VIEW C: Historial -->
+  <div id="history-view" class="view-container" hidden>
+    <div class="view-header">
+      <button class="btn-back" id="btn-back-from-history">← Resultados</button>
+      <span class="view-title">Historial de la sesión</span>
+    </div>
+    <div class="view-body">
+      <div id="history-list"></div>
     </div>
   </div>
 
