@@ -8,6 +8,7 @@ import { TIER_LABELS, getProvider, defaultModelFor } from "../lib/models.js";
 import { validateBaseUrl } from "../lib/providers.js";
 import { api, supportsAudioCapture } from "../lib/webext.js";
 import { initTheme } from "../lib/theme.js";
+import { DONATION_URL, DONATION_LABEL } from "../lib/strings.js";
 
 initTheme(document);
 
@@ -50,6 +51,13 @@ const inputInterval    = document.getElementById("input-interval");
 const btnSave          = document.getElementById("btn-save");
 const confirmMsg       = document.getElementById("confirm-msg");
 const selectTheme      = document.getElementById("select-theme");
+const donateChip       = document.getElementById("donate-chip");
+
+// Wire donation chip (href + label from single source in lib/strings.js)
+if (donateChip) {
+  donateChip.href        = DONATION_URL;
+  donateChip.textContent = DONATION_LABEL;
+}
 
 const CUSTOM_VALUE = "__custom__";
 

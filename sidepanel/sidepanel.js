@@ -22,6 +22,7 @@
 import { api } from "../lib/webext.js";
 import { initTheme } from "../lib/theme.js";
 import { getProvider } from "../lib/models.js";
+import { DONATION_URL, DONATION_LABEL } from "../lib/strings.js";
 
 // Apply theme as early as possible to minimise flash of wrong theme
 initTheme(document);
@@ -56,6 +57,13 @@ const historyView    = document.getElementById("history-view");
 // Toolbar buttons
 const btnConclusion = document.getElementById("btn-conclusion");
 const btnHistory    = document.getElementById("btn-history");
+
+// Donation chip
+const donateChip = document.getElementById("donate-chip");
+if (donateChip) {
+  donateChip.href        = DONATION_URL;
+  donateChip.textContent = DONATION_LABEL;
+}
 
 // Conclusion view refs
 const conclusionStats = document.getElementById("conclusion-stats");

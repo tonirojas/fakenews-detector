@@ -55,11 +55,41 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Panel title row (title + donate chip) ───────────────────── */
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .panel-title {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-strong);
-  margin-bottom: 8px;
+}
+
+/* ── Donation chip ──────────────────────────────────────────── */
+.donate-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.donate-chip:hover {
+  color: var(--text);
+  background: var(--border);
 }
 
 /* ── Overall verdict chip ────────────────────────────────────── */

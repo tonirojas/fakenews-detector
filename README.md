@@ -418,6 +418,14 @@ For providers with no built-in catalog (OpenRouter, Ollama, custom), type the mo
 
 ---
 
+## Support / Donations
+
+The extension shows a discreet "☕ Invítame a un café" chip in the header of the options page, the popup, and the side panel. Clicking it opens the developer's Buy Me a Coffee page in a new tab — no pop-ups, no nag screens, just a quiet link.
+
+The URL is stored as the single constant `DONATION_URL` in `lib/strings.js`. Replace the `TU_USUARIO` placeholder on that line with your real Buy Me a Coffee handle to activate the link. The label is stored as `DONATION_LABEL` in the same file.
+
+---
+
 ## Icons
 
 Icons are generated from `FakeNewsDetectorIcon.png` (source asset, transparent background) into the `icons/` folder at 16, 32, 48, and 128 px.

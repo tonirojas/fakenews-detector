@@ -6,6 +6,7 @@
 import { api, supportsAudioCapture, openResultsPanel } from "../lib/webext.js";
 import { initTheme, applyTheme } from "../lib/theme.js";
 import { getProvider } from "../lib/models.js";
+import { DONATION_URL, DONATION_LABEL } from "../lib/strings.js";
 
 // Apply theme as early as possible to minimise flash of wrong theme
 initTheme(document);
@@ -30,6 +31,13 @@ const btnPanel       = document.getElementById("btn-panel");
 const btnTheme       = document.getElementById("btn-theme");
 const linkOptions    = document.getElementById("link-options");
 const toggleAutoMode = document.getElementById("toggle-auto-mode");
+const donateChip     = document.getElementById("donate-chip");
+
+// Wire donation chip (href + label from single source in lib/strings.js)
+if (donateChip) {
+  donateChip.href        = DONATION_URL;
+  donateChip.querySelector("span").textContent = DONATION_LABEL;
+}
 
 let activeTabId      = null;
 let currentMode      = null;

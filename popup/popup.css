@@ -109,6 +109,42 @@ h1 {
 
 .btn-theme:hover { color: var(--text); background: var(--theme-btn-hover); }
 
+/* ── Donation chip ──────────────────────────────────────────── */
+/* Sits between the title and the theme toggle in the narrow header.
+   max-width + ellipsis prevent layout overflow on the 280 px popup. */
+.donate-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 85px;
+  overflow: hidden;
+  transition: color 0.15s, background 0.15s;
+}
+
+/* text-overflow:ellipsis requires a block-level child; it has no effect on
+   anonymous text nodes inside a flex container. The <span> is the flex item
+   that actually clips and shows the ellipsis. */
+.donate-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.donate-chip:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
 /* ── Provider line ──────────────────────────────────────────── */
 .provider-line {
   font-size: 12px;
