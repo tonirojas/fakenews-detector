@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FakeNews Detector — AI fact-checker for Chrome, Edge &amp; Firefox</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f8f9fb;
+    }
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 60px 24px 48px;
+      text-align: center;
+    }
+    header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 10px; }
+    header p  { font-size: 1.05rem; color: #c0c8e8; max-width: 540px; margin: 0 auto; }
+    .badge {
+      display: inline-block;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 999px;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    .container { max-width: 680px; margin: 0 auto; padding: 48px 24px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+    }
+    .card h2 { font-size: 1.1rem; color: #1a1a2e; margin-bottom: 8px; }
+    .card p  { color: #374151; margin-bottom: 8px; }
+    .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .btn {
+      display: inline-block;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #1a1a2e; color: #fff; }
+    .btn-secondary { background: #e5e7eb; color: #1a1a2e; }
+    footer {
+      text-align: center;
+      font-size: 0.82rem;
+      color: #9ca3af;
+      padding: 32px 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+    footer a { color: #6b7280; }
+    footer a:hover { color: #1a1a2e; }
+    ul { margin: 8px 0 0 18px; color: #374151; }
+    li { margin-bottom: 4px; }
+    .notice {
+      background: #fffbe6;
+      border-left: 4px solid #f59e0b;
+      border-radius: 0 8px 8px 0;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      color: #78350f;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>FakeNews Detector <span class="badge">v0.1</span></h1>
+  <p>AI-assisted fact-checker for Chrome, Edge, and Firefox — verify news, videos, and social media using your own LLM API key.</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>What it does</h2>
+    <p>FakeNews Detector analyzes the text, audio, and video content of web pages you choose to examine, sends it to the AI provider <em>you</em> configure (using your own API key), and returns a per-claim verdict with confidence scores and source links — directly in a side panel.</p>
+    <div class="notice">
+      This is a decision-support aid, not an infallible lie detector. Always verify critical claims independently.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Key features</h2>
+    <ul>
+      <li>Text, tab audio, and microphone analysis</li>
+      <li>14 built-in providers (Anthropic, OpenAI, Gemini, DeepSeek, Qwen, Kimi, GLM, MiniMax, Grok, Mistral, Groq, OpenRouter, Ollama, Custom)</li>
+      <li>Silent mode with Telegram alerts and email via webhook (n8n / Zapier / Make)</li>
+      <li>Session conclusion and history views</li>
+      <li>Real-time VU meter for audio capture</li>
+      <li>Day / night theme</li>
+      <li>No relay server — your browser talks directly to the AI provider you choose</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Links</h2>
+    <div class="links">
+      <a class="btn btn-primary" href="https://github.com/tonirojas/fakenews-detector" target="_blank" rel="noopener">GitHub Repository</a>
+      <a class="btn btn-secondary" href="privacy.html">Privacy Policy</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    FakeNews Detector &nbsp;·&nbsp;
+    <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="https://github.com/tonirojas/fakenews-detector">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

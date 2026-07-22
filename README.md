@@ -536,3 +536,22 @@ The URL is stored as the single constant `DONATION_URL` in `lib/strings.js`. Rep
 ## Icons
 
 Icons are generated from `FakeNewsDetectorIcon.png` (source asset, transparent background) into the `icons/` folder at 16, 32, 48, and 128 px.
+
+---
+
+## Publishing
+
+See [`STORE_LISTING.md`](STORE_LISTING.md) for the full submission kit: store descriptions (ES + EN), per-permission justifications, data-usage disclosure answers, and a screenshot guide.
+
+**Privacy policy:** https://tonirojas.github.io/fakenews-detector/privacy.html  
+(Source: `docs/privacy.html` — hosted via GitHub Pages from the `docs/` folder.)
+
+**Generate store tile images** (requires Pillow):
+```bash
+python3 scripts/make_store_assets.py
+```
+Output: `store_assets/small_promo_440x280.png` and `store_assets/marquee_1400x560.png`.
+
+**Chrome Web Store one-time developer fee:** USD $5. Review typically takes 1–3 business days for new extensions; extensions with broad host permissions (`<all_urls>`) may take longer and may require a written justification — the text in `STORE_LISTING.md` covers this.
+
+**Edge Add-ons** and **Firefox AMO** accept the same package (or the Firefox build from `python3 scripts/build_firefox.py`) at no cost. See `STORE_LISTING.md` for details.

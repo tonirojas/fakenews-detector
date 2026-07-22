@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Política de Privacidad / Privacy Policy — FakeNews Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f8f9fb;
+      padding: 0 16px 48px;
+    }
+    .page-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 32px 24px;
+      margin: 0 -16px 40px;
+      text-align: center;
+    }
+    .page-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
+    .page-header p  { font-size: 0.95rem; color: #c0c8e8; }
+    .lang-nav {
+      display: flex; gap: 12px; justify-content: center;
+      margin-bottom: 40px;
+    }
+    .lang-nav a {
+      display: inline-block;
+      padding: 6px 20px;
+      border-radius: 999px;
+      background: #1a1a2e;
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .lang-nav a:hover { background: #2d2d6e; }
+    .container { max-width: 760px; margin: 0 auto; }
+    .section { background: #fff; border-radius: 12px; padding: 32px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+    .section h2 { font-size: 1.4rem; color: #1a1a2e; margin-bottom: 4px; }
+    .section-lang { font-size: 0.78rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; margin-bottom: 20px; }
+    h3 { font-size: 1.05rem; color: #1a1a2e; margin: 24px 0 8px; }
+    p  { margin-bottom: 12px; color: #374151; }
+    ul, ol { margin: 8px 0 12px 20px; color: #374151; }
+    li { margin-bottom: 6px; }
+    code {
+      font-family: ui-monospace, "Cascadia Code", "Fira Mono", monospace;
+      font-size: 0.85em;
+      background: #f1f5f9;
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: #1e3a5f;
+    }
+    a { color: #2563eb; }
+    a:hover { text-decoration: underline; }
+    .notice {
+      background: #fffbe6;
+      border-left: 4px solid #f59e0b;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 16px 0;
+      font-size: 0.93rem;
+      color: #78350f;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 16px; font-size: 0.92rem; }
+    th { background: #f1f5f9; color: #1a1a2e; text-align: left; padding: 8px 12px; font-weight: 600; }
+    td { padding: 8px 12px; border-top: 1px solid #e5e7eb; color: #374151; vertical-align: top; }
+    tr:hover td { background: #f9fafb; }
+    .divider { border: none; border-top: 2px solid #e5e7eb; margin: 40px 0; }
+    footer { text-align: center; font-size: 0.82rem; color: #9ca3af; margin-top: 40px; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>FakeNews Detector</h1>
+  <p>Política de Privacidad &nbsp;/&nbsp; Privacy Policy</p>
+</div>
+
+<div class="container">
+
+  <nav class="lang-nav">
+    <a href="#es">Español</a>
+    <a href="#en">English</a>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECCIÓN EN ESPAÑOL
+       ══════════════════════════════════════════════════════════ -->
+  <div class="section" id="es">
+    <h2>Política de Privacidad</h2>
+    <p class="section-lang">Español</p>
+
+    <p><strong>Fecha de vigencia:</strong> 22 de julio de 2026<br>
+    <strong>Contacto:</strong> <a href="mailto:antoniorojasmoreno@gmail.com">antoniorojasmoreno@gmail.com</a><br>
+    <strong>Repositorio:</strong> <a href="https://github.com/tonirojas/fakenews-detector" target="_blank" rel="noopener">github.com/tonirojas/fakenews-detector</a></p>
+
+    <h3>1. Propósito único de la extensión</h3>
+    <p>
+      FakeNews Detector es una herramienta de apoyo a la decisión que verifica afirmaciones
+      en el contenido de páginas web elegido por el usuario mediante modelos de lenguaje (LLM)
+      de su propia elección. <strong>No es un detector infalible de mentiras</strong>; los resultados del
+      LLM pueden contener errores, sesgos o información desactualizada. Verifica siempre de
+      forma independiente las afirmaciones que sean críticas.
+    </p>
+
+    <h3>2. Qué datos se procesan y hacia dónde van</h3>
+
+    <p>La extensión nunca envía datos a ningún servidor operado por el desarrollador. Todo el
+    procesamiento se produce directamente entre tu navegador y los servicios que tú mismo configuras.</p>
+
+    <table>
+      <thead>
+        <tr><th>Dato</th><th>Destino</th><th>Condición</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Texto visible de la página que analizas</td>
+          <td>API del proveedor de IA que <strong>tú</strong> seleccionas, usando <strong>tu propia clave</strong></td>
+          <td>Solo cuando inicias un análisis manual o activas el modo automático / silencioso</td>
+        </tr>
+        <tr>
+          <td>Audio de la pestaña capturada</td>
+          <td>API del proveedor STT (transcripción) que <strong>tú</strong> configuras, usando <strong>tu propia clave STT</strong></td>
+          <td>Solo cuando inicias un análisis de audio manualmente</td>
+        </tr>
+        <tr>
+          <td>Audio del micrófono (modo vigilante)</td>
+          <td>Mismo proveedor STT configurado por <strong>ti</strong></td>
+          <td>Solo tras conceder el permiso de micrófono explícitamente desde la página de Configuración</td>
+        </tr>
+        <tr>
+          <td>Título de la página, URL, etiqueta de veredicto, puntuación de confianza y primer aviso de riesgo (hasta 180 caracteres)</td>
+          <td><code>api.telegram.org</code> — <strong>tu propio bot</strong></td>
+          <td>Solo si configuras un token de bot y un chat ID en Configuración, y solo para veredictos de riesgo (falsa / dudosa) en modo silencioso</td>
+        </tr>
+        <tr>
+          <td>JSON de alerta (origen, email de destino, título, URL, veredicto, etiqueta de veredicto, confianza, primera afirmación marcada, marca de tiempo). El email de destino se incluye para que la automatización receptora sepa a dónde reenviar la alerta.</td>
+          <td>URL de webhook que <strong>tú</strong> introduces</td>
+          <td>Solo si configuras una URL de webhook válida en Configuración; el receptor puede ser n8n, Zapier, Make o cualquier endpoint propio</td>
+        </tr>
+        <tr>
+          <td>Enlace de donación</td>
+          <td><code>buymeacoffee.com</code></td>
+          <td>Solo si haces clic en el chip de donación; no se envían datos personales</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="notice">
+      El desarrollador <strong>no recibe, almacena ni ve</strong> ninguno de los datos anteriores.
+      No existe ningún servidor de retransmisión.
+    </div>
+
+    <h3>3. Datos almacenados localmente</h3>
+    <p>Los siguientes datos se guardan únicamente en tu dispositivo:</p>
+    <ul>
+      <li><strong><code>chrome.storage.local</code> (permanente hasta desinstalar):</strong>
+        clave de API, proveedor seleccionado, modelo, URL base, clave STT, URL base STT,
+        modelo STT, intervalo de análisis, tema visual, modo automático, modo silencioso,
+        token del bot de Telegram, chat ID de Telegram, URL del webhook y email de destino.</li>
+      <li><strong><code>chrome.storage.session</code> (se borra al cerrar el navegador):</strong>
+        estado de análisis por pestaña, historial de sesión de la pestaña activa (hasta 50 entradas),
+        mapas de deduplicación de URLs y contador de alertas del modo silencioso.</li>
+    </ul>
+    <p>Ninguno de estos datos abandona tu dispositivo salvo los envíos directos descritos en la tabla anterior.</p>
+
+    <h3>4. Terceros — proveedores seleccionados por el usuario</h3>
+    <p>
+      Según el proveedor que elijas, tu navegador se conectará directamente a uno de los
+      siguientes endpoints. Cada uno se rige por su propia política de privacidad:
+    </p>
+    <ul>
+      <li>Anthropic — <code>api.anthropic.com</code></li>
+      <li>OpenAI — <code>api.openai.com</code></li>
+      <li>Google Gemini — <code>generativelanguage.googleapis.com</code></li>
+      <li>DeepSeek — <code>api.deepseek.com</code></li>
+      <li>Alibaba / Qwen — <code>dashscope-intl.aliyuncs.com</code></li>
+      <li>Moonshot / Kimi — <code>api.moonshot.ai</code></li>
+      <li>Zhipu / GLM — <code>api.z.ai</code></li>
+      <li>MiniMax — <code>api.minimax.io</code>, <code>api.minimaxi.com</code></li>
+      <li>xAI / Grok — <code>api.x.ai</code></li>
+      <li>Mistral — <code>api.mistral.ai</code></li>
+      <li>Groq — <code>api.groq.com</code></li>
+      <li>OpenRouter — <code>openrouter.ai</code></li>
+      <li>Ollama (local) — <code>localhost</code> / <code>127.0.0.1</code> — <em>ningún dato sale de tu máquina</em></li>
+      <li>Telegram (alertas opcionales) — <code>api.telegram.org</code></li>
+    </ul>
+    <p>La extensión también admite endpoints personalizados (<em>Personalizado</em>) y servidores
+    Whisper autoalojados; en ese caso el tráfico va al servidor que tú mismo controlas.</p>
+
+    <h3>5. Permisos explicados</h3>
+    <table>
+      <thead>
+        <tr><th>Permiso</th><th>Por qué es necesario</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>storage</code></td>
+          <td>Guardar tu clave de API, configuración y estado de sesión localmente en tu dispositivo.</td>
+        </tr>
+        <tr>
+          <td><code>tabs</code></td>
+          <td>Leer la URL y el título de la pestaña activa para el análisis automático/silencioso y para incluir esa información en las alertas de Telegram o webhook.</td>
+        </tr>
+        <tr>
+          <td><code>activeTab</code></td>
+          <td>Acceder al contenido de texto de la pestaña que el usuario elige analizar (botón manual «Analizar texto» o análisis automático en segundo plano).</td>
+        </tr>
+        <tr>
+          <td><code>tabCapture</code></td>
+          <td>Capturar el stream de audio de la pestaña activa para el análisis de audio/vídeo (YouTube, sitios de streaming, etc.). Solo disponible en Chrome y Edge.</td>
+        </tr>
+        <tr>
+          <td><code>offscreen</code></td>
+          <td>Crear un documento offscreen que procesa el audio (tab o micrófono) usando <code>MediaRecorder</code> y <code>getUserMedia</code>. Requerido por la arquitectura MV3 para usar estas APIs fuera del service worker.</td>
+        </tr>
+        <tr>
+          <td><code>sidePanel</code></td>
+          <td>Mostrar los resultados del análisis, el historial y la conclusión en el panel lateral integrado de Chrome.</td>
+        </tr>
+        <tr>
+          <td>Acceso a hosts <code>&lt;all_urls&gt;</code></td>
+          <td>Inyectar el script de contenido en cualquier página que el usuario decida analizar. Es necesario porque el usuario puede navegar a cualquier sitio web y elegir verificarlo. También lo requieren los modos automático y silencioso, que el usuario activa explícitamente para analizar páginas en segundo plano.</td>
+        </tr>
+        <tr>
+          <td>Acceso al micrófono</td>
+          <td>Solo en el modo vigilante. El permiso lo concede el usuario explícitamente a través del diálogo del navegador desde la página de Configuración. El audio va directamente al proveedor STT configurado, sin pasar por ningún servidor del desarrollador.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6. Lo que la extensión NO hace</h3>
+    <ul>
+      <li>No recopila analíticas, métricas de uso ni historial de navegación.</li>
+      <li>No muestra anuncios ni comparte datos con redes publicitarias.</li>
+      <li>No vende ni alquila ningún dato.</li>
+      <li>No utiliza los datos para fines distintos del análisis de contenido que el usuario inicia.</li>
+      <li>No retiene ningún dato en servidores propios porque no existen servidores propios.</li>
+    </ul>
+
+    <h3>7. Control del usuario</h3>
+    <ul>
+      <li>Toda funcionalidad es opt-in. El análisis manual requiere un clic; el modo automático y el modo silencioso requieren activarlos expresamente.</li>
+      <li>El botón <strong>Reiniciar</strong> del panel borra los resultados y el historial de la sesión activa.</li>
+      <li>Desinstalar la extensión elimina todos los datos locales (claves, configuración, historial).</li>
+      <li>Puedes revocar el permiso de micrófono en cualquier momento desde la configuración del navegador.</li>
+    </ul>
+
+    <h3>8. Cambios en esta política</h3>
+    <p>
+      Si se realizan cambios materiales, se actualizará la fecha de vigencia en esta página y se
+      reflejará en el historial del repositorio de GitHub:
+      <a href="https://github.com/tonirojas/fakenews-detector" target="_blank" rel="noopener">github.com/tonirojas/fakenews-detector</a>.
+      Recomendamos revisar esta política periódicamente.
+    </p>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ══════════════════════════════════════════════════════════
+       ENGLISH SECTION
+       ══════════════════════════════════════════════════════════ -->
+  <div class="section" id="en">
+    <h2>Privacy Policy</h2>
+    <p class="section-lang">English</p>
+
+    <p><strong>Effective date:</strong> 2026-07-22<br>
+    <strong>Contact:</strong> <a href="mailto:antoniorojasmoreno@gmail.com">antoniorojasmoreno@gmail.com</a><br>
+    <strong>Repository:</strong> <a href="https://github.com/tonirojas/fakenews-detector" target="_blank" rel="noopener">github.com/tonirojas/fakenews-detector</a></p>
+
+    <h3>1. Single purpose</h3>
+    <p>
+      FakeNews Detector is a decision-support tool that fact-checks claims in web page content
+      chosen by the user, using a large-language model (LLM) provider and API key selected and
+      supplied by the user. <strong>It is not an infallible lie detector.</strong> LLM outputs
+      may contain errors, biases, or outdated information. Always verify critical claims
+      independently.
+    </p>
+
+    <h3>2. What data is processed and where it goes</h3>
+
+    <p>The extension never transmits data to any server operated by the developer.
+    All processing happens directly between your browser and the services you configure.</p>
+
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Destination</th><th>When</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Visible text of the page you analyze</td>
+          <td>The AI provider API <strong>you</strong> select, using <strong>your own API key</strong></td>
+          <td>Only when you trigger manual analysis or enable auto / silent mode</td>
+        </tr>
+        <tr>
+          <td>Captured tab audio</td>
+          <td>The STT (transcription) provider API <strong>you</strong> configure, using <strong>your own STT key</strong></td>
+          <td>Only when you manually start an audio analysis</td>
+        </tr>
+        <tr>
+          <td>Microphone audio ("vigilante" mode)</td>
+          <td>Same STT provider configured by <strong>you</strong></td>
+          <td>Only after you explicitly grant microphone permission from the Settings page</td>
+        </tr>
+        <tr>
+          <td>Page title, URL, verdict label, confidence score, and first flagged claim (up to 180 chars)</td>
+          <td><code>api.telegram.org</code> — <strong>your own bot</strong></td>
+          <td>Only if you configure a bot token and chat ID in Settings, and only for risky verdicts (false / uncertain) in silent mode</td>
+        </tr>
+        <tr>
+          <td>Alert JSON (source, destination email, title, URL, verdict, verdict label, confidence, first flagged claim, timestamp). The destination email is included so the receiving automation knows where to forward the alert.</td>
+          <td>Webhook URL <strong>you</strong> provide</td>
+          <td>Only if you configure a valid webhook URL in Settings; the receiver may be n8n, Zapier, Make, or any custom endpoint you control</td>
+        </tr>
+        <tr>
+          <td>Donation link</td>
+          <td><code>buymeacoffee.com</code></td>
+          <td>Only if you click the donation chip; no personal data is transmitted</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="notice">
+      The developer <strong>does not receive, store, or view</strong> any of the above data.
+      There is no relay server.
+    </div>
+
+    <h3>3. Data stored locally on your device</h3>
+    <p>The following data is stored only on your device:</p>
+    <ul>
+      <li><strong><code>chrome.storage.local</code> (persists until uninstall):</strong>
+        API key, selected provider, model, base URL, STT key, STT base URL, STT model,
+        analysis interval, visual theme, auto mode flag, silent mode flag,
+        Telegram bot token, Telegram chat ID, webhook URL, and destination email.</li>
+      <li><strong><code>chrome.storage.session</code> (cleared when the browser closes):</strong>
+        per-tab analysis state, active tab session history (capped at 50 entries),
+        URL dedup maps (10-minute auto-mode and 30-minute alert-mode windows), and
+        silent-mode alert badge counter.</li>
+    </ul>
+    <p>None of this data leaves your device except through the direct transmissions described in the table above.</p>
+
+    <h3>4. Third parties — user-selected providers</h3>
+    <p>
+      Depending on the provider you choose, your browser will connect directly to one of the
+      following endpoints. Each is governed by its own privacy policy:
+    </p>
+    <ul>
+      <li>Anthropic — <code>api.anthropic.com</code></li>
+      <li>OpenAI — <code>api.openai.com</code></li>
+      <li>Google Gemini — <code>generativelanguage.googleapis.com</code></li>
+      <li>DeepSeek — <code>api.deepseek.com</code></li>
+      <li>Alibaba / Qwen — <code>dashscope-intl.aliyuncs.com</code></li>
+      <li>Moonshot / Kimi — <code>api.moonshot.ai</code></li>
+      <li>Zhipu / GLM — <code>api.z.ai</code></li>
+      <li>MiniMax — <code>api.minimax.io</code>, <code>api.minimaxi.com</code></li>
+      <li>xAI / Grok — <code>api.x.ai</code></li>
+      <li>Mistral — <code>api.mistral.ai</code></li>
+      <li>Groq — <code>api.groq.com</code></li>
+      <li>OpenRouter — <code>openrouter.ai</code></li>
+      <li>Ollama (local) — <code>localhost</code> / <code>127.0.0.1</code> — <em>no data leaves your machine</em></li>
+      <li>Telegram (optional alerts) — <code>api.telegram.org</code></li>
+    </ul>
+    <p>The extension also supports custom endpoints and self-hosted Whisper servers;
+    in that case traffic goes to the server you control.</p>
+
+    <h3>5. Permissions — plain-language explanation</h3>
+    <table>
+      <thead>
+        <tr><th>Permission</th><th>Why it is needed</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>storage</code></td>
+          <td>Store your API key, settings, and session state locally on your device.</td>
+        </tr>
+        <tr>
+          <td><code>tabs</code></td>
+          <td>Read the URL and title of the active tab for automatic/silent-mode analysis and to populate Telegram or webhook alert messages with page context.</td>
+        </tr>
+        <tr>
+          <td><code>activeTab</code></td>
+          <td>Access the text content of the page the user explicitly chooses to analyze (manual "Analizar texto" button, or background analysis in auto/silent mode).</td>
+        </tr>
+        <tr>
+          <td><code>tabCapture</code></td>
+          <td>Capture the audio stream of the active tab for audio/video fact-checking (YouTube, streaming sites, etc.). Chrome and Edge only; automatically disabled in Firefox.</td>
+        </tr>
+        <tr>
+          <td><code>offscreen</code></td>
+          <td>Create an offscreen document that processes tab audio and microphone input using <code>MediaRecorder</code> and <code>getUserMedia</code>. Required by the MV3 architecture to use these APIs outside the service worker.</td>
+        </tr>
+        <tr>
+          <td><code>sidePanel</code></td>
+          <td>Show analysis results, session history, and the conclusion view in Chrome's built-in side panel.</td>
+        </tr>
+        <tr>
+          <td>Host access <code>&lt;all_urls&gt;</code></td>
+          <td>Inject the content script on any page the user decides to analyze. Required because the user can navigate to any website and choose to fact-check it. Also required for auto and silent modes, which the user explicitly enables to background-analyze visited pages.</td>
+        </tr>
+        <tr>
+          <td>Microphone access</td>
+          <td>Vigilante mode only. Permission is granted explicitly by the user via the browser's permission dialog from the Settings page. Audio goes directly to the configured STT provider — not through any developer server.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6. What the extension does NOT do</h3>
+    <ul>
+      <li>Does not collect analytics, usage metrics, or browsing history.</li>
+      <li>Does not display ads or share data with advertising networks.</li>
+      <li>Does not sell or rent any data.</li>
+      <li>Does not use data for any purpose other than the content analysis initiated by the user.</li>
+      <li>Does not retain any data on developer-operated servers because no such servers exist.</li>
+    </ul>
+
+    <h3>7. User controls</h3>
+    <ul>
+      <li>All functionality is opt-in. Manual analysis requires a click; auto mode and silent mode must be explicitly enabled.</li>
+      <li>The <strong>Reiniciar</strong> (Reset) button in the panel clears results and session history for the active tab.</li>
+      <li>Uninstalling the extension removes all local data (keys, settings, history).</li>
+      <li>You can revoke microphone permission at any time from the browser settings.</li>
+    </ul>
+
+    <h3>8. Changes to this policy</h3>
+    <p>
+      If material changes are made, the effective date on this page will be updated and the
+      change will be reflected in the GitHub repository history:
+      <a href="https://github.com/tonirojas/fakenews-detector" target="_blank" rel="noopener">github.com/tonirojas/fakenews-detector</a>.
+      We recommend reviewing this policy periodically.
+    </p>
+  </div>
+
+  <footer>
+    <p>FakeNews Detector &nbsp;·&nbsp; <a href="index.html">Home</a> &nbsp;·&nbsp; <a href="https://github.com/tonirojas/fakenews-detector">GitHub</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
