@@ -29,7 +29,8 @@
     "https://api.minimax.io/*",
     "https://api.minimaxi.com/*",
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://api.telegram.org/*"
   ],
 
   "icons": {

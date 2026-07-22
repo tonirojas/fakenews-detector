@@ -357,6 +357,61 @@ When active, the background service worker listens for tab switches and page loa
 
 ---
 
+## Modo silencioso + alertas de Telegram
+
+Enable **Modo silencioso** in the popup (or in **Configuración**) to let the extension analyze every page you visit completely invisibly — no colored glow border, no banner pill. The side panel and session history keep working normally whenever you open them.
+
+### What it does
+
+When Silent Mode is ON:
+
+- The extension auto-analyzes visited tabs in the background using the same pipeline as **Protección automática**. You do not need to enable both — Silent Mode activates background analysis on its own.
+- The on-page overlay (glow border + banner) is suppressed entirely. Any existing overlay is removed immediately when you switch the mode on.
+- When a **risky verdict** is detected (overall verdict *falsa* or *dudosa*), a Telegram alert is sent to you with the page title, URL, verdict, and the first flagged claim (~180 characters).
+- Alerts for the same URL are not repeated within **30 minutes** (per-URL dedup backed by session storage).
+- A **red badge counter** on the extension icon tracks how many alerts have been sent in the current session. It resets to zero when Silent Mode is turned off or when you click **Reiniciar** in the panel.
+
+### Setting up a Telegram bot
+
+1. Open Telegram and start a chat with **@BotFather**.
+2. Send `/newbot` and follow the prompts to create a bot. BotFather will give you a **bot token** (format: `123456:ABCdef…`).
+3. Get your **chat ID**: start a chat with **@userinfobot** — it replies with your numeric user ID. Alternatively, send any message to your bot and call `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser; the `id` field inside `chat` is your chat ID.
+4. In **Configuración → Modo silencioso y alertas**, enter the token and chat ID, then click **Probar Telegram** to verify the connection before saving.
+
+### Alert format
+
+```
+⚠️ Posible desinformación detectada
+
+<page title>
+<URL>
+
+Veredicto: FAKE NEW confirmada (87%)
+
+<first flagged claim, up to 180 characters>
+```
+
+### Cost guards
+
+Silent Mode reuses all the same guards as Automatic Mode:
+
+| Guard | Detail |
+|---|---|
+| API key required | No LLM call is made if no key is configured (skipped for Ollama) |
+| HTTP/HTTPS only | Internal browser pages, `file://`, and web-store URLs are skipped |
+| 10-minute URL dedupe | The same URL is not re-analyzed until 10 minutes have elapsed |
+| 30-minute alert dedupe | The same URL does not trigger a second Telegram alert within 30 minutes |
+| Only risky verdicts | Alerts fire only for *falsa* or *dudosa* — true/unverifiable results are silent |
+
+### Privacy
+
+- The bot token is stored in `chrome.storage.local` on this device only and is **never logged**.
+- The token is sent only to `api.telegram.org` over HTTPS — no relay server is involved.
+- Each alert sends the page title, URL, overall verdict, and one flagged claim to your Telegram account. No other data leaves the browser.
+- **Email alerts** are planned but not yet available: browser extensions cannot send email directly. A webhook/EmailJS integration is on the roadmap.
+
+---
+
 ## Choosing a model
 
 | Tier | Label | When to use |

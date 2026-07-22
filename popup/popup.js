@@ -30,8 +30,10 @@ const btnStop        = document.getElementById("btn-stop");
 const btnPanel       = document.getElementById("btn-panel");
 const btnTheme       = document.getElementById("btn-theme");
 const linkOptions    = document.getElementById("link-options");
-const toggleAutoMode = document.getElementById("toggle-auto-mode");
-const donateChip     = document.getElementById("donate-chip");
+const toggleAutoMode   = document.getElementById("toggle-auto-mode");
+const toggleSilentMode = document.getElementById("toggle-silent-mode");
+const silentModeHint   = document.getElementById("silent-mode-hint");
+const donateChip       = document.getElementById("donate-chip");
 
 // Wire donation chip (href + label from single source in lib/strings.js)
 if (donateChip) {
@@ -139,13 +141,20 @@ async function init() {
 
   // Load settings
   const settings = await api.storage.local.get([
-    "provider", "apiKey", "model", "autoMode",
+    "provider", "apiKey", "model", "autoMode", "silentMode",
+    "telegramToken", "telegramChatId",
   ]);
   const provider  = settings.provider ?? "anthropic";
   currentProvider = provider;
   hasKey          = !!settings.apiKey;
 
   toggleAutoMode.checked = !!settings.autoMode;
+
+  if (toggleSilentMode) toggleSilentMode.checked = !!settings.silentMode;
+  // Show the Telegram hint if silent mode is on but Telegram is not yet configured
+  if (settings.silentMode && (!settings.telegramToken || !settings.telegramChatId)) {
+    if (silentModeHint) silentModeHint.style.display = "";
+  }
 
   providerLine.textContent = `Proveedor: ${getProvider(provider).label}`;
 
@@ -233,6 +242,29 @@ toggleAutoMode.addEventListener("change", async () => {
   }
   // Toggling OFF: persist only — do not disturb any running analysis
 });
+
+// Silent-mode toggle
+if (toggleSilentMode) {
+  toggleSilentMode.addEventListener("change", async () => {
+    const enabled = toggleSilentMode.checked;
+    try {
+      await api.storage.local.set({ silentMode: enabled });
+    } catch {
+      // storage unavailable — ignore
+    }
+
+    if (enabled) {
+      // Warn if Telegram is not yet configured (alert won't send, but silent analysis still works)
+      const stored = await api.storage.local.get(["telegramToken", "telegramChatId"]);
+      if (silentModeHint) {
+        silentModeHint.style.display =
+          (!stored.telegramToken || !stored.telegramChatId) ? "" : "none";
+      }
+    } else {
+      if (silentModeHint) silentModeHint.style.display = "none";
+    }
+  });
+}
 
 // openResultsPanel MUST be called directly inside the click handler (user gesture required)
 btnPanel.addEventListener("click", async () => {

@@ -242,8 +242,9 @@ button:disabled {
 
 .footer-link a:hover { text-decoration: underline; }
 
-/* ── Auto-mode toggle section ────────────────────────────────── */
-.auto-mode-section { margin-top: 12px; }
+/* ── Auto-mode / silent-mode toggle sections ─────────────────── */
+.auto-mode-section  { margin-top: 12px; }
+.silent-mode-section { margin-top: 8px; }
 
 .auto-mode-row {
   display: flex;

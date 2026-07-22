@@ -111,6 +111,20 @@ const AUTO_RECENCY_MS  = 10 * 60 * 1000; // 10 minutes
 // Whether autoRecentUrls has been restored from api.storage.session this SW lifetime
 let autoRecentUrlsRestored = false;
 
+// ---------------------------------------------------------------------------
+// Silent-mode notification dedup state
+// ---------------------------------------------------------------------------
+
+/** @type {Map<string, number>} */
+const notifiedUrls = new Map(); // url → lastNotifiedAt timestamp (ms)
+let notifiedUrlsRestored = false;
+
+const NOTIFY_DEDUP_MS  = 30 * 60 * 1000; // 30-minute minimum gap between alerts for the same URL
+const NOTIFY_DEDUP_MAX = 50;             // max entries in notified-URLs map (LRU eviction)
+
+/** Counter for silent-mode Telegram alerts — displayed in the action badge. */
+let silentAlertCount = 0;
+
 /**
  * Persist the recency map to api.storage.session so it survives MV3 SW restarts
  * within the same browser session.
@@ -147,6 +161,46 @@ async function restoreAutoRecentUrls() {
 }
 
 // ---------------------------------------------------------------------------
+// Notification dedup helpers — mirrors the autoRecentUrls pattern
+// ---------------------------------------------------------------------------
+
+async function persistNotifiedUrls() {
+  try {
+    await api.storage.session.set({
+      notifiedUrls: [...notifiedUrls.entries()],
+      silentAlertCount,
+    });
+  } catch {
+    // session storage may not be available — ignore
+  }
+}
+
+async function restoreNotifiedUrls() {
+  if (notifiedUrlsRestored) return;
+  notifiedUrlsRestored = true;
+  try {
+    const data = await api.storage.session.get(["notifiedUrls", "silentAlertCount"]);
+    const entries = data.notifiedUrls;
+    if (Array.isArray(entries)) {
+      for (const [url, ts] of entries) {
+        notifiedUrls.set(url, ts);
+      }
+    }
+    // Restore badge counter so it survives MV3 SW restarts within the same session
+    const restoredCount = data.silentAlertCount ?? 0;
+    if (restoredCount > 0) {
+      silentAlertCount = restoredCount;
+      if (api.action) {
+        api.action.setBadgeText({ text: String(silentAlertCount) }).catch(() => {});
+        api.action.setBadgeBackgroundColor({ color: "#dc2626" }).catch(() => {});
+      }
+    }
+  } catch {
+    // session storage may not be available — start with empty map
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Settings helpers
 // ---------------------------------------------------------------------------
 async function loadSettings() {
@@ -162,6 +216,9 @@ async function loadSettings() {
     language: "es",
     autoMode: false,
     theme: "auto",
+    silentMode: false,
+    telegramToken: "",
+    telegramChatId: "",
   };
   // Read current keys + legacy openaiSttKey for one-time migration
   const stored = await api.storage.local.get([...Object.keys(defaults), "openaiSttKey"]);
@@ -198,7 +255,7 @@ function broadcastToRuntime(message) {
   });
 }
 
-function broadcastVerdictUpdate(tabId, analysisResult, status) {
+function broadcastVerdictUpdate(tabId, analysisResult, status, silent = false) {
   const payload = {
     type: "VERDICT_UPDATE",
     tabId,
@@ -206,15 +263,132 @@ function broadcastVerdictUpdate(tabId, analysisResult, status) {
     claims: analysisResult.claims,
     status: status ?? "ok",
   };
-  broadcastToTab(tabId, payload);
+  // In silent mode, skip the tab-level overlay broadcast — the side panel still receives it
+  if (!silent) broadcastToTab(tabId, payload);
   broadcastToRuntime(payload);
   persistState(tabId);
 }
 
-function broadcastError(tabId, spanishMessage) {
+function broadcastError(tabId, spanishMessage, silent = false) {
   const payload = { type: "ANALYSIS_ERROR", tabId, message: spanishMessage };
-  broadcastToTab(tabId, payload);
+  // In silent mode, skip the tab-level overlay broadcast (mirrors broadcastVerdictUpdate)
+  if (!silent) broadcastToTab(tabId, payload);
   broadcastToRuntime(payload);
+}
+
+// ---------------------------------------------------------------------------
+// Telegram notification helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * POST a message to the Telegram Bot API.
+ * SECURITY: The bot token is embedded in the URL path as required by the
+ * Telegram Bot API. It is sent only to api.telegram.org over HTTPS and is
+ * NEVER logged anywhere in this codebase.
+ *
+ * @param {string} token   Bot token obtained from @BotFather
+ * @param {string} chatId  Destination chat ID
+ * @param {string} text    Message body (plain text)
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+async function sendTelegram(token, chatId, text) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const errText = (await res.text().catch(() => "")).slice(0, 100);
+      return { ok: false, error: errText };
+    }
+    return { ok: true };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return { ok: false, error: err.message?.slice(0, 100) ?? "fetch error" };
+  }
+}
+
+/**
+ * Send a Telegram alert for a risky analysis result when silent mode is active.
+ * Respects a 30-minute per-URL dedup window backed by session storage.
+ * Increments the action badge counter on success.
+ *
+ * @param {number} tabId
+ * @param {object} result    AnalysisResult returned by factCheck
+ * @param {object} settings  Loaded settings (must include telegramToken, telegramChatId)
+ */
+async function maybeNotifyTelegram(tabId, result, settings) {
+  await restoreNotifiedUrls();
+
+  let tabUrl   = "";
+  let tabTitle = "";
+  try {
+    const tab  = await api.tabs.get(tabId);
+    tabUrl     = tab?.url   ?? "";
+    tabTitle   = tab?.title ?? "";
+  } catch {
+    return; // tab was closed before notification could be sent
+  }
+
+  if (!tabUrl) return;
+
+  // 30-minute dedup guard
+  const now = Date.now();
+  const lastNotified = notifiedUrls.get(tabUrl);
+  if (lastNotified != null && now - lastNotified < NOTIFY_DEDUP_MS) return;
+
+  // Optimistic lock: stamp the URL BEFORE awaiting sendTelegram so a concurrent
+  // audio-chunk call that arrives while sendTelegram is in flight cannot bypass
+  // the dedup window. JS is single-threaded so this write is atomic with respect
+  // to any subsequent synchronous check in a concurrent async task.
+  notifiedUrls.delete(tabUrl);
+  notifiedUrls.set(tabUrl, now);
+  if (notifiedUrls.size > NOTIFY_DEDUP_MAX) {
+    const oldest = notifiedUrls.keys().next().value;
+    notifiedUrls.delete(oldest);
+  }
+  persistNotifiedUrls(); // fire-and-forget
+
+  const verdictLabels = {
+    false:     "FAKE NEW confirmada",
+    uncertain: "Posible mentira",
+  };
+  const verdictLabel = verdictLabels[result.overall?.verdict] ?? String(result.overall?.verdict ?? "");
+  const conf = result.overall?.confidence ?? 0;
+  // Handle both 0-1 and 0-100 confidence scales
+  const confDisplay = conf > 1 ? Math.round(conf) : Math.round(conf * 100);
+
+  // Find the first risky claim for extra context (~180 chars)
+  const riskyClaim = (result.claims ?? []).find(
+    (c) => c.verdict === "false" || c.verdict === "uncertain"
+  );
+  const claimText = (riskyClaim?.statement ?? riskyClaim?.text ?? "").slice(0, 180);
+
+  const titleLine = tabTitle ? `${tabTitle}\n` : "";
+  const claimLine = claimText ? `\n\n${claimText}` : "";
+  const message =
+    `⚠️ Posible desinformación detectada\n\n${titleLine}${tabUrl}\n\n` +
+    `Veredicto: ${verdictLabel} (${confDisplay}%)${claimLine}`;
+
+  const { ok } = await sendTelegram(settings.telegramToken, settings.telegramChatId, message);
+  if (ok) {
+    // Dedup stamp was already applied optimistically before sendTelegram was called.
+    // Update badge (guarded — Firefox also supports api.action but we guard defensively)
+    silentAlertCount++;
+    persistNotifiedUrls(); // re-persist with updated silentAlertCount
+    if (api.action) {
+      api.action.setBadgeText({ text: String(silentAlertCount) }).catch(() => {});
+      api.action.setBadgeBackgroundColor({ color: "#dc2626" }).catch(() => {});
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -313,9 +487,19 @@ async function handlePageText(tabId, text) {
 
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: "text", overall: result.overall, claims: result.claims });
-    broadcastVerdictUpdate(tabId, result, "ok");
+    broadcastVerdictUpdate(tabId, result, "ok", settings.silentMode);
+    // Telegram alert for risky verdicts when silent mode is active — fire-and-forget
+    const verdict = result.overall?.verdict;
+    if (
+      settings.silentMode &&
+      (verdict === "false" || verdict === "uncertain") &&
+      settings.telegramToken &&
+      settings.telegramChatId
+    ) {
+      maybeNotifyTelegram(tabId, result, settings);
+    }
   } catch (err) {
-    broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`);
+    broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`, settings.silentMode);
   } finally {
     state.inFlight = false;
   }
@@ -432,9 +616,19 @@ async function handleAudioChunk(tabId, base64, mimeType) {
 
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: chunkMode, overall: result.overall, claims: result.claims });
-    broadcastVerdictUpdate(tabId, result, "ok");
+    broadcastVerdictUpdate(tabId, result, "ok", settings.silentMode);
+    // Telegram alert for risky verdicts when silent mode is active — fire-and-forget
+    const chunkVerdict = result.overall?.verdict;
+    if (
+      settings.silentMode &&
+      (chunkVerdict === "false" || chunkVerdict === "uncertain") &&
+      settings.telegramToken &&
+      settings.telegramChatId
+    ) {
+      maybeNotifyTelegram(tabId, result, settings);
+    }
   } catch (err) {
-    broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`);
+    broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`, settings.silentMode);
   } finally {
     state.inFlight = false;
   }
@@ -541,9 +735,9 @@ async function maybeAutoAnalyze(tabId) {
   // Restore persisted recency map lazily on the first call after a SW restart
   await restoreAutoRecentUrls();
 
-  // Guard 1 — autoMode enabled
+  // Guard 1 — autoMode or silentMode enabled
   const settings = await loadSettings();
-  if (!settings.autoMode) return;
+  if (!settings.autoMode && !settings.silentMode) return;
 
   // Guard 2 — apiKey configured (skip for providers that do not require a key, e.g. Ollama)
   const provInfo = getProvider(settings.provider);
@@ -729,16 +923,26 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // c. Remove the tab's current URL from autoRecentUrls so auto-mode can
         //    immediately re-analyze after a Reiniciar (the 10-minute dedupe window
         //    would otherwise block a new analysis on the same page).
+        //    Also remove from notifiedUrls so a deliberate session reset allows an
+        //    immediate re-alert via Telegram (matches the autoRecentUrls eviction).
         try {
           const t = await api.tabs.get(tabId);
           if (t?.url) {
             autoRecentUrls.delete(t.url);
             persistAutoRecentUrls();
+            notifiedUrls.delete(t.url);
+            persistNotifiedUrls();
           }
         } catch { /* tab may have been closed */ }
 
         // d. Persist the fresh empty state.
         persistState(tabId);
+
+        // e. Reset silent-mode alert badge.
+        silentAlertCount = 0;
+        if (api.action) {
+          api.action.setBadgeText({ text: "" }).catch(() => {});
+        }
       })();
       return false; // fire-and-forget
     }
@@ -826,6 +1030,20 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false; // fire-and-forget
     }
 
+    case "TEST_TELEGRAM": {
+      if (!isExtensionPageSender(sender)) return false;
+      const { token, chatId } = message;
+      (async () => {
+        const testResult = await sendTelegram(
+          token,
+          chatId,
+          "✅ Prueba de FakeNews Detector: las alertas de Telegram funcionan."
+        );
+        sendResponse(testResult);
+      })();
+      return true; // async response — keep channel open
+    }
+
     default:
       return false;
   }
@@ -906,6 +1124,35 @@ api.runtime.onInstalled.addListener(async ({ reason }) => {
         autoMode: false,
         theme: "auto",
       });
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// storage.onChanged — react to silentMode transitions
+// CRITICAL MV3 RULE: registered synchronously at module top level.
+// ---------------------------------------------------------------------------
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.silentMode) return;
+
+  const newValue = changes.silentMode.newValue;
+
+  if (newValue === true) {
+    // Silent mode just turned ON: remove overlay from all http(s) tabs so any
+    // existing glow border and banner disappear immediately.
+    api.tabs.query({}).then((tabs) => {
+      for (const tab of tabs) {
+        const url = tab.url ?? "";
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+          broadcastToTab(tab.id, { type: "REMOVE_OVERLAY" });
+        }
+      }
+    }).catch(() => {});
+  } else {
+    // Silent mode turned OFF: clear the alert badge.
+    silentAlertCount = 0;
+    if (api.action) {
+      api.action.setBadgeText({ text: "" }).catch(() => {});
     }
   }
 });

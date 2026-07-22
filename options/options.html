@@ -141,6 +141,60 @@
 
     <div class="divider"></div>
 
+    <!-- Silent mode + Telegram alerts -->
+    <div id="silent-mode-section">
+      <h2 class="section-title">Modo silencioso y alertas</h2>
+      <p class="hint" style="margin-bottom:12px;">
+        Analiza en segundo plano las páginas que visitas <strong>SIN</strong> mostrar el marco de color
+        ni el banner. Cuando detecta contenido de riesgo (falsa o dudosa), te avisa por Telegram.
+        El panel y el historial siguen disponibles.
+      </p>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <span class="toggle-label-text">Modo silencioso</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-silent-mode"
+                   role="switch" aria-label="Modo silencioso" />
+            <span class="toggle-slider" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="input-tg-token">Token del bot de Telegram</label>
+        <input type="password" id="input-tg-token" autocomplete="off"
+               placeholder="123456:ABCdefGHIjklMNOpqrSTUvwxYZ…" />
+        <p class="hint">
+          Obtenlo en <strong>@BotFather</strong> en Telegram (comando <code>/newbot</code>).
+          El token se guarda localmente y solo se envía a <code>api.telegram.org</code>.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label for="input-tg-chatid">Chat ID de Telegram</label>
+        <input type="text" id="input-tg-chatid" autocomplete="off"
+               placeholder="123456789" />
+        <p class="hint">
+          Obtenlo con <strong>@userinfobot</strong> o usando el método <code>getUpdates</code>
+          de la Bot API después de enviar un mensaje a tu bot.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <button class="btn-test-tg" id="btn-test-telegram">Probar Telegram</button>
+        <p class="tg-test-status" id="tg-test-status"></p>
+      </div>
+
+      <p class="hint tg-privacy-note">
+        Privacidad: el token se guarda localmente en este dispositivo. El título, la URL
+        y la afirmación marcada se envían únicamente a tu Telegram — ningún dato pasa por
+        servidores de esta extensión. Las alertas por email aún no están disponibles (próximamente).
+      </p>
+    </div>
+
+    <div class="divider"></div>
+
     <button class="btn-save" id="btn-save">Guardar configuración</button>
     <span class="confirm-msg" id="confirm-msg">✓ Guardado</span>
   </div>

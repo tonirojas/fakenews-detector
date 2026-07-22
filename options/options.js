@@ -52,6 +52,11 @@ const btnSave          = document.getElementById("btn-save");
 const confirmMsg       = document.getElementById("confirm-msg");
 const selectTheme      = document.getElementById("select-theme");
 const donateChip       = document.getElementById("donate-chip");
+const toggleSilentMode = document.getElementById("toggle-silent-mode");
+const inputTgToken     = document.getElementById("input-tg-token");
+const inputTgChatId    = document.getElementById("input-tg-chatid");
+const btnTestTelegram  = document.getElementById("btn-test-telegram");
+const tgTestStatus     = document.getElementById("tg-test-status");
 
 // Wire donation chip (href + label from single source in lib/strings.js)
 if (donateChip) {
@@ -233,6 +238,7 @@ async function loadSettings() {
     "sttKey", "sttBaseUrl", "sttModel",
     "openaiSttKey",  // legacy — read for migration
     "checkIntervalSec", "theme",
+    "silentMode", "telegramToken", "telegramChatId",
   ];
   const data = await api.storage.local.get(keys);
 
@@ -257,6 +263,11 @@ async function loadSettings() {
 
   // Apply provider-specific UI (rebuilds model select, sets placeholder, toggles sections)
   applyProviderUI(provider);
+
+  // Silent mode + Telegram
+  if (toggleSilentMode) toggleSilentMode.checked = !!data.silentMode;
+  if (inputTgToken)  inputTgToken.value  = data.telegramToken  ?? "";
+  if (inputTgChatId) inputTgChatId.value = data.telegramChatId ?? "";
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +338,9 @@ btnSave.addEventListener("click", async () => {
     checkIntervalSec: interval,
     language:         "es",
     theme:            selectTheme.value,
+    silentMode:       toggleSilentMode ? toggleSilentMode.checked : false,
+    telegramToken:    inputTgToken  ? inputTgToken.value           : "",  // stored as-is, never logged
+    telegramChatId:   inputTgChatId ? inputTgChatId.value.trim()  : "",
   });
 
   // Remove legacy storage key (migrated to sttKey)
@@ -343,7 +357,41 @@ api.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.theme) {
     selectTheme.value = changes.theme.newValue ?? "auto";
   }
+  // Sync silentMode if toggled from the popup while options page is open
+  if (area === "local" && changes.silentMode && toggleSilentMode) {
+    toggleSilentMode.checked = !!changes.silentMode.newValue;
+  }
 });
+
+// ---------------------------------------------------------------------------
+// "Probar Telegram" button — tests with the currently-entered (unsaved) values
+// ---------------------------------------------------------------------------
+if (btnTestTelegram) {
+  btnTestTelegram.addEventListener("click", async () => {
+    btnTestTelegram.disabled = true;
+    tgTestStatus.textContent = "";
+    tgTestStatus.className   = "tg-test-status";
+    try {
+      const result = await api.runtime.sendMessage({
+        type:   "TEST_TELEGRAM",
+        token:  inputTgToken  ? inputTgToken.value           : "",
+        chatId: inputTgChatId ? inputTgChatId.value.trim()  : "",
+      });
+      if (result?.ok) {
+        tgTestStatus.textContent = "Mensaje de prueba enviado. Revisa tu Telegram.";
+        tgTestStatus.className   = "tg-test-status tg-test-success";
+      } else {
+        tgTestStatus.textContent = `Error: ${result?.error ?? "sin respuesta del fondo"}`;
+        tgTestStatus.className   = "tg-test-status tg-test-error";
+      }
+    } catch (err) {
+      tgTestStatus.textContent = `Error: ${err.message?.slice(0, 80) ?? "desconocido"}`;
+      tgTestStatus.className   = "tg-test-status tg-test-error";
+    } finally {
+      btnTestTelegram.disabled = false;
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Microphone permission section (Chrome / Edge only)

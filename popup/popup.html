@@ -52,6 +52,23 @@
     </div>
   </div>
 
+  <div class="silent-mode-section">
+    <div class="auto-mode-row">
+      <div class="auto-mode-text" id="silent-mode-desc">
+        <div class="auto-mode-label">Modo silencioso</div>
+        <div class="auto-mode-hint">Analiza en segundo plano sin mostrar el marco ni el banner. Recibe alertas en Telegram cuando detecta contenido de riesgo.</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-silent-mode"
+               role="switch" aria-labelledby="silent-mode-desc" />
+        <span class="toggle-slider" aria-hidden="true"></span>
+      </label>
+    </div>
+  </div>
+  <div id="silent-mode-hint" class="audio-hint" style="display:none;">
+    Configura el bot de Telegram en Configuración para recibir alertas.
+  </div>
+
   <div class="divider"></div>
 
   <div class="footer-link">
