@@ -44,7 +44,12 @@ const SEGMENT_MS = 6000; // recording segment length in milliseconds
 // ---------------------------------------------------------------------------
 // Message listener
 // ---------------------------------------------------------------------------
-api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Defense in depth: only accept capture-control commands from the extension's
+  // own background service worker. Content scripts carry a sender.tab; reject them
+  // (and any other origin) so page-injected scripts can never drive audio/mic capture.
+  if (sender?.id !== api.runtime.id || sender?.tab) return;
+
   if (message.type === "OFFSCREEN_START") {
     startCapture(message.streamId, message.tabId)
       .then(() => sendResponse({ ok: true }))
