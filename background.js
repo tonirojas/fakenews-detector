@@ -17,7 +17,7 @@
  *   GET_STATE            {tabId}                     → responds with state
  */
 
-import { factCheck, transcribe, summarizeSession, NoSttError } from "./lib/providers.js";
+import { factCheck, transcribe, summarizeSession, NoSttError, validateBaseUrl } from "./lib/providers.js";
 import { ERRORS } from "./lib/strings.js";
 import { defaultModelFor, getProvider } from "./lib/models.js";
 import { api, supportsAudioCapture } from "./lib/webext.js";
@@ -219,6 +219,8 @@ async function loadSettings() {
     silentMode: false,
     telegramToken: "",
     telegramChatId: "",
+    webhookUrl: "",
+    alertEmail: "",
   };
   // Read current keys + legacy openaiSttKey for one-time migration
   const stored = await api.storage.local.get([...Object.keys(defaults), "openaiSttKey"]);
@@ -317,15 +319,47 @@ async function sendTelegram(token, chatId, text) {
 }
 
 /**
- * Send a Telegram alert for a risky analysis result when silent mode is active.
- * Respects a 30-minute per-URL dedup window backed by session storage.
- * Increments the action badge counter on success.
+ * POST a JSON alert payload to a user-configured webhook URL (n8n, Zapier, Make, or custom).
+ * The receiving flow is responsible for sending the email.
+ *
+ * @param {string} url     Webhook endpoint (must pass validateBaseUrl — https or http-localhost)
+ * @param {object} payload Alert payload object (serialised as JSON)
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+async function sendWebhook(url, payload) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const errText = (await res.text().catch(() => "")).slice(0, 100);
+      return { ok: false, error: errText };
+    }
+    return { ok: true };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return { ok: false, error: err.message?.slice(0, 100) ?? "fetch error" };
+  }
+}
+
+/**
+ * Send alerts for a risky analysis result when silent mode is active.
+ * Fires both configured channels (Telegram and/or webhook) after a single
+ * per-URL dedup check. Respects a 30-minute dedup window backed by session
+ * storage — a given URL fires at most one alert across ALL channels per window.
+ * Increments the action badge counter if at least one channel succeeds.
  *
  * @param {number} tabId
  * @param {object} result    AnalysisResult returned by factCheck
- * @param {object} settings  Loaded settings (must include telegramToken, telegramChatId)
+ * @param {object} settings  Loaded settings
  */
-async function maybeNotifyTelegram(tabId, result, settings) {
+async function maybeNotifyAlert(tabId, result, settings) {
   await restoreNotifiedUrls();
 
   let tabUrl   = "";
@@ -340,15 +374,23 @@ async function maybeNotifyTelegram(tabId, result, settings) {
 
   if (!tabUrl) return;
 
-  // 30-minute dedup guard
+  // Bail early if no channel is configured — avoids stamping the dedup window
+  // when there is nothing to send, which would silently block future alerts for
+  // 30 minutes after the user later configures a channel.
+  const hasTelegram = !!(settings.telegramToken && settings.telegramChatId);
+  const rawWebhookUrlEarly = settings.webhookUrl ?? "";
+  const hasWebhook = !!(rawWebhookUrlEarly && !validateBaseUrl(rawWebhookUrlEarly));
+  if (!hasTelegram && !hasWebhook) return;
+
+  // 30-minute dedup guard — shared across ALL channels
   const now = Date.now();
   const lastNotified = notifiedUrls.get(tabUrl);
   if (lastNotified != null && now - lastNotified < NOTIFY_DEDUP_MS) return;
 
-  // Optimistic lock: stamp the URL BEFORE awaiting sendTelegram so a concurrent
-  // audio-chunk call that arrives while sendTelegram is in flight cannot bypass
-  // the dedup window. JS is single-threaded so this write is atomic with respect
-  // to any subsequent synchronous check in a concurrent async task.
+  // Optimistic lock: stamp the URL BEFORE awaiting any network call so a concurrent
+  // audio-chunk call that arrives while a send is in flight cannot bypass the dedup
+  // window. JS is single-threaded so this write is atomic with respect to any
+  // subsequent synchronous check in a concurrent async task.
   notifiedUrls.delete(tabUrl);
   notifiedUrls.set(tabUrl, now);
   if (notifiedUrls.size > NOTIFY_DEDUP_MAX) {
@@ -366,22 +408,52 @@ async function maybeNotifyTelegram(tabId, result, settings) {
   // Handle both 0-1 and 0-100 confidence scales
   const confDisplay = conf > 1 ? Math.round(conf) : Math.round(conf * 100);
 
-  // Find the first risky claim for extra context (~180 chars)
+  // Find the first risky claim for extra context
   const riskyClaim = (result.claims ?? []).find(
     (c) => c.verdict === "false" || c.verdict === "uncertain"
   );
-  const claimText = (riskyClaim?.statement ?? riskyClaim?.text ?? "").slice(0, 180);
+  const claimText = (riskyClaim?.statement ?? riskyClaim?.text ?? "").slice(0, 300);
 
-  const titleLine = tabTitle ? `${tabTitle}\n` : "";
-  const claimLine = claimText ? `\n\n${claimText}` : "";
-  const message =
-    `⚠️ Posible desinformación detectada\n\n${titleLine}${tabUrl}\n\n` +
-    `Veredicto: ${verdictLabel} (${confDisplay}%)${claimLine}`;
+  // ── Channel A: Telegram ──────────────────────────────────────────────────
+  let anyOk = false;
 
-  const { ok } = await sendTelegram(settings.telegramToken, settings.telegramChatId, message);
-  if (ok) {
-    // Dedup stamp was already applied optimistically before sendTelegram was called.
-    // Update badge (guarded — Firefox also supports api.action but we guard defensively)
+  if (settings.telegramToken && settings.telegramChatId) {
+    const claimLine = claimText ? `\n\n${claimText.slice(0, 180)}` : "";
+    const titleLine = tabTitle ? `${tabTitle}\n` : "";
+    const message =
+      `⚠️ Posible desinformación detectada\n\n${titleLine}${tabUrl}\n\n` +
+      `Veredicto: ${verdictLabel} (${confDisplay}%)${claimLine}`;
+
+    const tgResult = await sendTelegram(settings.telegramToken, settings.telegramChatId, message);
+    if (tgResult.ok) anyOk = true;
+  }
+
+  // ── Channel B: Webhook (n8n / Zapier / Make / custom) ───────────────────
+  const rawWebhookUrl = settings.webhookUrl ?? "";
+  if (rawWebhookUrl) {
+    const urlErr = validateBaseUrl(rawWebhookUrl);
+    if (!urlErr) {
+      // Payload fields: enough for the flow to send a useful email; no raw page text.
+      const payload = {
+        source:       "FakeNews Detector",
+        email:        settings.alertEmail || "",
+        title:        tabTitle,
+        url:          tabUrl,
+        verdict:      result.overall?.verdict ?? "",
+        verdictLabel,
+        confidence:   confDisplay,
+        claim:        claimText,
+        timestamp:    new Date().toISOString(),
+      };
+      const whResult = await sendWebhook(rawWebhookUrl, payload);
+      if (whResult.ok) anyOk = true;
+    }
+    // If URL is invalid, skip silently — options page validates on save
+  }
+
+  // ── Badge increment — only if at least one channel succeeded ────────────
+  if (anyOk) {
+    // Dedup stamp was already applied optimistically above.
     silentAlertCount++;
     persistNotifiedUrls(); // re-persist with updated silentAlertCount
     if (api.action) {
@@ -488,15 +560,10 @@ async function handlePageText(tabId, text) {
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: "text", overall: result.overall, claims: result.claims });
     broadcastVerdictUpdate(tabId, result, "ok", settings.silentMode);
-    // Telegram alert for risky verdicts when silent mode is active — fire-and-forget
+    // Alert channels for risky verdicts when silent mode is active — fire-and-forget
     const verdict = result.overall?.verdict;
-    if (
-      settings.silentMode &&
-      (verdict === "false" || verdict === "uncertain") &&
-      settings.telegramToken &&
-      settings.telegramChatId
-    ) {
-      maybeNotifyTelegram(tabId, result, settings);
+    if (settings.silentMode && (verdict === "false" || verdict === "uncertain")) {
+      maybeNotifyAlert(tabId, result, settings);
     }
   } catch (err) {
     broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`, settings.silentMode);
@@ -617,15 +684,10 @@ async function handleAudioChunk(tabId, base64, mimeType) {
     state.results.push(result);
     pushHistory(state, { kind: "analysis", mode: chunkMode, overall: result.overall, claims: result.claims });
     broadcastVerdictUpdate(tabId, result, "ok", settings.silentMode);
-    // Telegram alert for risky verdicts when silent mode is active — fire-and-forget
+    // Alert channels for risky verdicts when silent mode is active — fire-and-forget
     const chunkVerdict = result.overall?.verdict;
-    if (
-      settings.silentMode &&
-      (chunkVerdict === "false" || chunkVerdict === "uncertain") &&
-      settings.telegramToken &&
-      settings.telegramChatId
-    ) {
-      maybeNotifyTelegram(tabId, result, settings);
+    if (settings.silentMode && (chunkVerdict === "false" || chunkVerdict === "uncertain")) {
+      maybeNotifyAlert(tabId, result, settings);
     }
   } catch (err) {
     broadcastError(tabId, `${ERRORS.ANALYSIS_FAILED} (${err.message?.slice(0, 80)})`, settings.silentMode);
@@ -1039,6 +1101,32 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
           chatId,
           "✅ Prueba de FakeNews Detector: las alertas de Telegram funcionan."
         );
+        sendResponse(testResult);
+      })();
+      return true; // async response — keep channel open
+    }
+
+    case "TEST_WEBHOOK": {
+      if (!isExtensionPageSender(sender)) return false;
+      const { url: testUrl, email: testEmail } = message;
+      (async () => {
+        const urlErr = validateBaseUrl(testUrl || "");
+        if (urlErr) {
+          sendResponse({ ok: false, error: "URL no válida (usa https, o http solo para localhost)." });
+          return;
+        }
+        const testPayload = {
+          source:       "FakeNews Detector",
+          email:        testEmail || "",
+          title:        "Prueba",
+          url:          "https://ejemplo.com",
+          verdict:      "uncertain",
+          verdictLabel: "Prueba",
+          confidence:   0,
+          claim:        "Mensaje de prueba de FakeNews Detector.",
+          timestamp:    new Date().toISOString(),
+        };
+        const testResult = await sendWebhook(testUrl, testPayload);
         sendResponse(testResult);
       })();
       return true; // async response — keep channel open

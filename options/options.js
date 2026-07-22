@@ -52,11 +52,16 @@ const btnSave          = document.getElementById("btn-save");
 const confirmMsg       = document.getElementById("confirm-msg");
 const selectTheme      = document.getElementById("select-theme");
 const donateChip       = document.getElementById("donate-chip");
-const toggleSilentMode = document.getElementById("toggle-silent-mode");
-const inputTgToken     = document.getElementById("input-tg-token");
-const inputTgChatId    = document.getElementById("input-tg-chatid");
-const btnTestTelegram  = document.getElementById("btn-test-telegram");
-const tgTestStatus     = document.getElementById("tg-test-status");
+const toggleSilentMode   = document.getElementById("toggle-silent-mode");
+const inputTgToken       = document.getElementById("input-tg-token");
+const inputTgChatId      = document.getElementById("input-tg-chatid");
+const btnTestTelegram    = document.getElementById("btn-test-telegram");
+const tgTestStatus       = document.getElementById("tg-test-status");
+const inputWebhookUrl    = document.getElementById("input-webhook-url");
+const webhookUrlError    = document.getElementById("webhook-url-error");
+const inputAlertEmail    = document.getElementById("input-alert-email");
+const btnTestWebhook     = document.getElementById("btn-test-webhook");
+const webhookTestStatus  = document.getElementById("webhook-test-status");
 
 // Wire donation chip (href + label from single source in lib/strings.js)
 if (donateChip) {
@@ -239,6 +244,7 @@ async function loadSettings() {
     "openaiSttKey",  // legacy — read for migration
     "checkIntervalSec", "theme",
     "silentMode", "telegramToken", "telegramChatId",
+    "webhookUrl", "alertEmail",
   ];
   const data = await api.storage.local.get(keys);
 
@@ -268,6 +274,10 @@ async function loadSettings() {
   if (toggleSilentMode) toggleSilentMode.checked = !!data.silentMode;
   if (inputTgToken)  inputTgToken.value  = data.telegramToken  ?? "";
   if (inputTgChatId) inputTgChatId.value = data.telegramChatId ?? "";
+
+  // Webhook email alerts
+  if (inputWebhookUrl)  inputWebhookUrl.value  = data.webhookUrl  ?? "";
+  if (inputAlertEmail)  inputAlertEmail.value  = data.alertEmail  ?? "";
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +306,21 @@ btnSave.addEventListener("click", async () => {
     return;
   }
   baseurlError.style.display = "none";
+
+  // Validate webhook URL if the user typed one
+  const rawWebhookUrl = inputWebhookUrl ? inputWebhookUrl.value.trim() : "";
+  if (rawWebhookUrl) {
+    const whErr = validateBaseUrl(rawWebhookUrl);
+    if (whErr) {
+      if (webhookUrlError) {
+        webhookUrlError.textContent = "URL no válida (usa https, o http solo para localhost).";
+        webhookUrlError.style.display = "";
+      }
+      if (inputWebhookUrl) inputWebhookUrl.focus();
+      return;
+    }
+  }
+  if (webhookUrlError) webhookUrlError.style.display = "none";
 
   // Validate STT base URL if the user typed one
   const rawSttBaseUrl = inputSttBaseurl.value.trim();
@@ -341,6 +366,8 @@ btnSave.addEventListener("click", async () => {
     silentMode:       toggleSilentMode ? toggleSilentMode.checked : false,
     telegramToken:    inputTgToken  ? inputTgToken.value           : "",  // stored as-is, never logged
     telegramChatId:   inputTgChatId ? inputTgChatId.value.trim()  : "",
+    webhookUrl:       rawWebhookUrl,
+    alertEmail:       inputAlertEmail ? inputAlertEmail.value.trim() : "",
   });
 
   // Remove legacy storage key (migrated to sttKey)
@@ -389,6 +416,36 @@ if (btnTestTelegram) {
       tgTestStatus.className   = "tg-test-status tg-test-error";
     } finally {
       btnTestTelegram.disabled = false;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// "Probar webhook" button — tests with the currently-entered (unsaved) values
+// ---------------------------------------------------------------------------
+if (btnTestWebhook) {
+  btnTestWebhook.addEventListener("click", async () => {
+    btnTestWebhook.disabled = true;
+    webhookTestStatus.textContent = "";
+    webhookTestStatus.className   = "webhook-test-status";
+    try {
+      const result = await api.runtime.sendMessage({
+        type:  "TEST_WEBHOOK",
+        url:   inputWebhookUrl ? inputWebhookUrl.value.trim() : "",
+        email: inputAlertEmail ? inputAlertEmail.value.trim() : "",
+      });
+      if (result?.ok) {
+        webhookTestStatus.textContent = "Webhook de prueba enviado. Revisa tu flujo/email.";
+        webhookTestStatus.className   = "webhook-test-status webhook-test-success";
+      } else {
+        webhookTestStatus.textContent = `Error: ${result?.error ?? "sin respuesta del fondo"}`;
+        webhookTestStatus.className   = "webhook-test-status webhook-test-error";
+      }
+    } catch (err) {
+      webhookTestStatus.textContent = `Error: ${err.message?.slice(0, 80) ?? "desconocido"}`;
+      webhookTestStatus.className   = "webhook-test-status webhook-test-error";
+    } finally {
+      btnTestWebhook.disabled = false;
     }
   });
 }

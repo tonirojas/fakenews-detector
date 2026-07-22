@@ -347,3 +347,68 @@ input:focus {
 :root[data-theme="dark"] .tg-test-error { color: #f87171; }
 
 .tg-privacy-note { font-style: italic; }
+
+/* ── Webhook subsection heading ─────────────────────────────── */
+.subsection-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin-bottom: 6px;
+}
+
+/* ── Webhook test button + status ───────────────────────────── */
+.btn-test-webhook {
+  background: #065f46;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto;
+  transition: background 0.15s;
+}
+
+.btn-test-webhook:hover:not(:disabled) { background: #047857; }
+
+.btn-test-webhook:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.webhook-test-status {
+  font-size: 13px;
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.webhook-test-success { color: var(--success-text); }
+.webhook-test-error   { color: #dc2626; }
+
+:root[data-theme="dark"] .webhook-test-error { color: #f87171; }
+
+/* Make url/email inputs share the same styling as text/password inputs */
+input[type="url"],
+input[type="email"] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+input[type="url"]:focus,
+input[type="email"]:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+:root[data-theme="dark"] input[type="url"],
+:root[data-theme="dark"] input[type="email"] {
+  color-scheme: dark;
+}

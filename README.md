@@ -408,7 +408,59 @@ Silent Mode reuses all the same guards as Automatic Mode:
 - The bot token is stored in `chrome.storage.local` on this device only and is **never logged**.
 - The token is sent only to `api.telegram.org` over HTTPS — no relay server is involved.
 - Each alert sends the page title, URL, overall verdict, and one flagged claim to your Telegram account. No other data leaves the browser.
-- **Email alerts** are planned but not yet available: browser extensions cannot send email directly. A webhook/EmailJS integration is on the roadmap.
+- **Email alerts via webhook** are available — see the section below. Browser extensions cannot send email directly; the webhook is the email path.
+
+---
+
+## Alertas por email con n8n (webhook)
+
+Silent Mode supports a second alert channel: a **generic webhook POST** that lets any automation platform (n8n, Zapier, Make, or a custom HTTP endpoint) send an email on the extension's behalf.
+
+> Browser extensions cannot send email directly. The webhook IS the email path — the extension POSTs the alert data to your endpoint, and your flow sends the email.
+
+Both channels (Telegram and webhook) share the **same 30-minute per-URL dedup window**: a given URL triggers at most one alert across both channels within that window.
+
+### Payload JSON schema
+
+```json
+{
+  "source":       "FakeNews Detector",
+  "email":        "tu@email.com",
+  "title":        "Titular de la página",
+  "url":          "https://ejemplo.com/articulo",
+  "verdict":      "false",
+  "verdictLabel": "FAKE NEW confirmada",
+  "confidence":   87,
+  "claim":        "Primera afirmación marcada como falsa o dudosa (hasta 300 caracteres).",
+  "timestamp":    "2026-07-22T10:30:00.000Z"
+}
+```
+
+This schema works with any webhook-capable platform. The `email` field contains the destination address you set in Options.
+
+### n8n step-by-step recipe
+
+1. In n8n, create a new workflow and add a **Webhook** trigger node set to **POST** method. Copy the **Production URL** (the one you get after activating the workflow).
+
+2. Add a **Send Email** (SMTP) node or a **Gmail** node after the trigger. Configure the fields using the payload data — in n8n the Webhook node exposes the body under `$json.body`:
+
+   | Email field | n8n expression |
+   |---|---|
+   | To | `{{ $json.body.email }}` |
+   | Subject | `⚠️ FakeNews Detector: {{ $json.body.verdictLabel }} — {{ $json.body.title }}` |
+   | Body | `URL: {{ $json.body.url }}\n\nVeredicto: {{ $json.body.verdictLabel }} ({{ $json.body.confidence }}%)\n\n{{ $json.body.claim }}\n\nDetectado: {{ $json.body.timestamp }}` |
+
+3. **Activate** the workflow (the Production URL only accepts requests while the workflow is active).
+
+4. Paste the Production URL into **Configuración → Alertas por email → URL del webhook**, enter the destination email in **Email de destino**, and click **Probar webhook** to send a test payload and verify the flow.
+
+### Zapier / Make / custom
+
+The same payload works with any platform that accepts an HTTP POST:
+
+- **Zapier:** use a **Webhooks by Zapier** trigger → **Catch Hook**; then add a **Gmail** or **Email by Zapier** action. Map `body.email`, `body.verdictLabel`, `body.title`, etc.
+- **Make (Integromat):** use a **Webhooks → Custom webhook** trigger; then add a **Gmail** or **Email** module. The body fields arrive as `body.email`, `body.title`, etc.
+- **Custom endpoint:** any HTTP server that reads the JSON body and calls an SMTP or transactional-email API (SendGrid, Postmark, Resend, etc.).
 
 ---
 
